@@ -1,0 +1,47 @@
+@page "/workflows/import"
+@model ComfyBridge.Api.Pages.Workflows.ImportModel
+@{
+    ViewData["Title"] = "Import Workflow";
+}
+
+<style>
+    .page-wrap { margin: 2rem; }
+    .card { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 14px; padding: 1.25rem; box-shadow: 0 12px 30px rgba(15,23,42,.08); }
+    .row { margin: .8rem 0; }
+    label { display: block; font-weight: 600; margin-bottom: .35rem; }
+    textarea { width: 100%; min-height: 280px; border-radius: 10px; border: 1px solid #cbd5e1; padding: .7rem; font-family: Consolas, monospace; }
+    input[type=file] { width: 100%; padding: .45rem; border: 1px solid #cbd5e1; border-radius: 10px; }
+    .btn { border: 0; background: #0369a1; color: #fff; border-radius: 10px; padding: .6rem .9rem; cursor: pointer; }
+    .muted { color: #6b7280; }
+    .error { background: #fee2e2; color: #991b1b; padding: .6rem .8rem; border-radius: 10px; margin-bottom: .8rem; }
+</style>
+
+<div class="page-wrap">
+    <div class="card">
+        <h1>Import ComfyUI Workflow</h1>
+        <p class="muted">Upload a JSON file or paste workflow JSON, then generate an editable template draft.</p>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="error">@Model.ErrorMessage</div>
+        }
+
+        <form method="post" enctype="multipart/form-data" asp-page-handler="Analyze" novalidate>
+            @Html.AntiForgeryToken()
+            <div class="row">
+                <label asp-for="WorkflowFile">Workflow File (.json, max 1 MB)</label>
+                <input asp-for="WorkflowFile" type="file" accept="application/json,.json" />
+            </div>
+
+            <div class="row">
+                <label asp-for="WorkflowJson">Or paste workflow JSON</label>
+                <textarea asp-for="WorkflowJson" placeholder="{ &quot;1&quot;: { &quot;class_type&quot;: &quot;CLIPTextEncode&quot; ... } }"></textarea>
+            </div>
+
+            <div class="row">
+                <button type="submit" class="btn">Analyze &amp; Generate Template</button>
+                <a href="/workflows">Back to list</a>
+            </div>
+        </form>
+    </div>
+</div>

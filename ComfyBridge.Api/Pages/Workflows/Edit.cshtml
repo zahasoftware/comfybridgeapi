@@ -1,0 +1,161 @@
+@page "/workflows/edit/{id}"
+@model ComfyBridge.Api.Pages.Workflows.EditModel
+@{
+    ViewData["Title"] = "Edit Workflow Template";
+}
+
+<style>
+    .page-wrap { margin: 1.5rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 12px; padding: 1rem; box-shadow: 0 10px 24px rgba(2,6,23,.08); margin-bottom: 1rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    label { font-size: .9rem; font-weight: 600; display: block; margin-bottom: .25rem; }
+    input, textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: .55rem; box-sizing: border-box; }
+    textarea { min-height: 300px; font-family: Consolas, monospace; font-size: .85rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: .45rem .4rem; text-align: left; vertical-align: middle; }
+    td input { padding: .35rem .45rem; font-size: .9rem; }
+    .chip { display: inline-block; margin: .2rem .2rem 0 0; background: #ecfeff; color: #164e63; border-radius: 999px; padding: .15rem .45rem; font-size: .8rem; }
+    .btn { border: 0; border-radius: 8px; padding: .55rem .9rem; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #0284c7; color: #fff; }
+    .btn-success { background: #0f766e; color: #fff; }
+    .btn-warning { background: #d97706; color: #fff; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-light { background: #e2e8f0; color: #0f172a; text-decoration: none; display: inline-block; }
+    .btn-sm { padding: .3rem .6rem; font-size: .82rem; }
+    .row-actions { display: flex; gap: .5rem; align-items: center; }
+    .error { background: #fee2e2; color: #991b1b; padding: .6rem .8rem; border-radius: 8px; }
+    .toolbar { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+    @@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="page-wrap">
+<div class="container">
+    <div class="card toolbar">
+        <h1 style="margin:0; flex:1;">Edit Template</h1>
+        <a href="/workflows" class="btn btn-light">Back to list</a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="card error">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="card" style="background:#dcfce7;color:#166534;">@Model.StatusMessage</div>
+    }
+
+    <form method="post" id="editForm" novalidate>
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="OriginalKey" />
+
+        <div class="card grid">
+            <div>
+                <label asp-for="Name">Template Name</label>
+                <input asp-for="Name" />
+            </div>
+            <div>
+                <label asp-for="Version">Version</label>
+                <input asp-for="Version" />
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Detected Node Types</h2>
+            @if (Model.DetectedNodeTypes.Count == 0)
+            {
+                <span class="chip">No node types detected</span>
+            }
+            else
+            {
+                @foreach (var nodeType in Model.DetectedNodeTypes)
+                {
+                    <span class="chip">@nodeType</span>
+                }
+            }
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.6rem;">
+                <h2 style="margin:0;">Input Mapping</h2>
+                <div style="display:flex; gap:.5rem;">
+                    <button type="button" class="btn btn-warning btn-sm" onclick="addRow()">+ Add Row</button>
+                    <button type="submit" formaction="/workflows/edit/@Model.OriginalKey?handler=Regenerate"
+                            class="btn btn-success btn-sm">&#x21BA; Regenerate Mapping</button>
+                    <button type="submit" formaction="/workflows/edit/@Model.OriginalKey?handler=RegenerateAndSave"
+                            class="btn btn-primary btn-sm">Save Regenerated Mapping</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Input Name</th>
+                        <th>Type</th>
+                        <th>Node Id</th>
+                        <th>Node Class</th>
+                        <th>Index</th>
+                        <th>Field</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="mappingBody">
+                    @for (var i = 0; i < Model.Inputs.Count; i++)
+                    {
+                        <tr>
+                            <td><input asp-for="Inputs[i].InputName" /></td>
+                            <td><input asp-for="Inputs[i].InputType" /></td>
+                            <td><input asp-for="Inputs[i].NodeId" /></td>
+                            <td><input asp-for="Inputs[i].NodeClass" /></td>
+                            <td><input asp-for="Inputs[i].NodeIndex" style="width:60px;" /></td>
+                            <td><input asp-for="Inputs[i].Field" /></td>
+                            <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">Remove</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>mapping.json Preview</h2>
+            <p style="font-size:.85rem;color:#6b7280;">This is the separate mapping file that will be stored next to the workflow.</p>
+            <textarea readonly>@Model.MappingJson</textarea>
+        </div>
+
+        <div class="card">
+            <h2>Workflow JSON</h2>
+            <p style="font-size:.85rem;color:#6b7280;">Edit the raw workflow JSON below. Click <strong>Regenerate Mapping</strong> to re-detect inputs after changes.</p>
+            <textarea asp-for="WorkflowJson" id="workflowJsonArea"></textarea>
+        </div>
+
+        <div class="card toolbar">
+            <button type="submit" asp-page-handler="Save" class="btn btn-primary">Save Template</button>
+            <a href="/workflows" class="btn btn-light">Cancel</a>
+        </div>
+    </form>
+</div>
+</div>
+
+<script>
+    let rowIndex = @Model.Inputs.Count;
+
+    function addRow() {
+        const tbody = document.getElementById('mappingBody');
+        const i = rowIndex++;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input name="Inputs[${i}].InputName" value="" class="form-control" /></td>
+            <td><input name="Inputs[${i}].InputType" value="string" /></td>
+            <td><input name="Inputs[${i}].NodeId" value="" /></td>
+            <td><input name="Inputs[${i}].NodeClass" value="" /></td>
+            <td><input name="Inputs[${i}].NodeIndex" value="0" style="width:60px;" /></td>
+            <td><input name="Inputs[${i}].Field" value="" /></td>
+            <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">Remove</button></td>
+        `;
+        tbody.appendChild(tr);
+    }
+
+    function removeRow(btn) {
+        btn.closest('tr').remove();
+    }
+</script>

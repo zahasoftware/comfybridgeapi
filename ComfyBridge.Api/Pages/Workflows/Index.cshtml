@@ -1,0 +1,81 @@
+@page "/workflows"
+@model ComfyBridge.Api.Pages.Workflows.IndexModel
+@{
+    ViewData["Title"] = "Workflow Manager";
+}
+
+<style>
+    body { margin: 2rem; background: #f8fafc; }
+    .card { background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 8px 24px rgba(15,23,42,.08); margin-bottom: 1rem; }
+    .row { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+    .muted { color: #6b7280; font-size: .95rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { text-align: left; padding: .65rem .5rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    .actions { display: flex; gap: .5rem; }
+    .btn { border: 0; border-radius: 8px; padding: .5rem .8rem; cursor: pointer; text-decoration: none; display: inline-block; font-weight: 600; }
+    .btn-primary { background: #0f766e; color: #fff; }
+    .btn-ghost { background: #e2e8f0; color: #0f172a; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .badge { display: inline-block; margin: 0 .2rem .2rem 0; background: #ecfeff; color: #155e75; padding: .15rem .45rem; border-radius: 999px; font-size: .78rem; }
+</style>
+
+<div class="card row">
+    <div>
+        <h1>Workflow Templates</h1>
+        <p class="muted">Import a ComfyUI workflow, auto-generate mappings, review, and save.</p>
+    </div>
+    <a class="btn btn-primary" href="/workflows/import">Import Workflow</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="card">@Model.StatusMessage</div>
+}
+
+<div class="card">
+    @if (Model.Templates.Count == 0)
+    {
+        <p class="muted">No templates found. Import your first workflow.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Version</th>
+                    <th>Inputs</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var template in Model.Templates.OrderBy(t => t.Name).ThenByDescending(t => t.Version))
+            {
+                <tr>
+                    <td>@template.Name</td>
+                    <td>@template.Version</td>
+                    <td>
+                        @foreach (var input in template.Inputs)
+                        {
+                            <span class="badge">@input.Key (@input.Value)</span>
+                        }
+                    </td>
+                    <td>
+                        <div class="actions">
+                            <a class="btn btn-primary" href="/workflows/test/@Uri.EscapeDataString(template.TemplateKey)">Test</a>
+                            <a class="btn btn-ghost" href="/workflows/@Uri.EscapeDataString(template.TemplateKey)">View</a>
+                            <a class="btn btn-ghost" href="/workflows/edit/@Uri.EscapeDataString(template.TemplateKey)" style="background:#dbeafe;color:#1e40af;">Edit</a>
+                            <form method="post" asp-page-handler="Delete" style="display: inline;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="name" value="@template.Name" />
+                                <input type="hidden" name="version" value="@template.Version" />
+                                <button class="btn btn-danger" type="submit">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>
