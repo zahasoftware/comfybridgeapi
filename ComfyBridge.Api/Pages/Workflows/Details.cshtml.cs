@@ -17,6 +17,9 @@ public sealed class DetailsModel(ITemplateService templateService, IWorkflowDraf
     public string Version { get; set; } = "1.0";
 
     [BindProperty]
+    public string Category { get; set; } = string.Empty;
+
+    [BindProperty]
     public string WorkflowJson { get; set; } = string.Empty;
 
     [BindProperty]
@@ -45,6 +48,7 @@ public sealed class DetailsModel(ITemplateService templateService, IWorkflowDraf
             IsDraft = true;
             Name = draftResult.Template.Name;
             Version = draftResult.Template.Version;
+            Category = draftResult.Template.Category;
             WorkflowJson = draftResult.WorkflowJson;
             DetectedNodeTypes = draftResult.DetectedNodeTypes;
             Inputs = draftResult.Template.Mapping
@@ -72,6 +76,7 @@ public sealed class DetailsModel(ITemplateService templateService, IWorkflowDraf
         var template = await templateService.GetTemplateAsync(split[0], split[1], cancellationToken);
         Name = template.Name;
         Version = template.Version;
+        Category = template.Category;
         WorkflowJson = template.Workflow.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         DetectedNodeTypes = ExtractNodeTypes(template.Workflow);
         Inputs = template.Mapping
@@ -139,6 +144,7 @@ public sealed class DetailsModel(ITemplateService templateService, IWorkflowDraf
             {
                 Name = Name,
                 Version = Version,
+                Category = Category,
                 Workflow = workflowNode,
                 Inputs = inputs,
                 Mapping = mapping

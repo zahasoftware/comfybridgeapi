@@ -40,6 +40,7 @@
         <input type="hidden" asp-for="WorkflowJson" />
         <input type="hidden" asp-for="DraftId" />
         <input type="hidden" asp-for="IsDraft" />
+        <input type="hidden" asp-for="Category" />
 
         <div class="card grid">
             <div>
@@ -49,6 +50,19 @@
             <div>
                 <label asp-for="Version">Version</label>
                 <input asp-for="Version" />
+            </div>
+            <div>
+                <label>Category</label>
+                <select asp-for="Category" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:.55rem;">
+                    <option value="">— none —</option>
+                    <option value="text2image">text2image</option>
+                    <option value="text2video">text2video</option>
+                    <option value="image2image">image2image</option>
+                    <option value="image2video">image2video</option>
+                    <option value="inpainting">inpainting</option>
+                    <option value="upscale">upscale</option>
+                    <option value="general">general</option>
+                </select>
             </div>
         </div>
 

@@ -73,6 +73,7 @@ public sealed class FileTemplateRepository(IOptions<TemplateStorageOptions> opti
                         {
                             Name = template.Name,
                             Version = template.Version,
+                            Category = template.Category,
                             Inputs = template.Inputs,
                             Mapping = template.Mapping,
                             ExampleRequest = template.ExampleRequest,
@@ -93,6 +94,7 @@ public sealed class FileTemplateRepository(IOptions<TemplateStorageOptions> opti
                         {
                             Name = template.Name,
                             Version = template.Version,
+                            Category = template.Category,
                             Inputs = dto.Inputs,
                             Mapping = dto.Mapping,
                             ExampleRequest = template.ExampleRequest,

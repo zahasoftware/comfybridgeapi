@@ -21,6 +21,7 @@ public sealed class WorkflowController(IWorkflowAnalyzer workflowAnalyzer, ITemp
         {
             Name = t.Name,
             Version = t.Version,
+            Category = t.Category,
             Inputs = t.Inputs
         }));
     }
@@ -64,6 +65,7 @@ public sealed class WorkflowController(IWorkflowAnalyzer workflowAnalyzer, ITemp
         {
             Name = request.Name,
             Version = request.Version,
+            Category = request.Category,
             Inputs = request.Inputs,
             Mapping = request.Mapping,
             Workflow = workflowNode
@@ -73,6 +75,7 @@ public sealed class WorkflowController(IWorkflowAnalyzer workflowAnalyzer, ITemp
         {
             Name = template.Name,
             Version = template.Version,
+            Category = template.Category,
             Inputs = template.Inputs
         });
     }

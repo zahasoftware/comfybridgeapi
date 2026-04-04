@@ -1,0 +1,397 @@
+@page "/api-explorer"
+@model ComfyBridge.Api.Pages.ApiExplorerModel
+@{
+    ViewData["Title"] = "API Explorer";
+    int cardIdx = 0;
+}
+
+<style>
+/* ── reset ──────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── page ───────────────────────────────────────── */
+.page { padding: 1.5rem; font-family: "Segoe UI", sans-serif; color: #0f172a; }
+.container { max-width: 1100px; margin: 0 auto; }
+
+/* ── hero ───────────────────────────────────────── */
+.hero { background: linear-gradient(135deg,#f0fdfa 0%,#e0f2fe 100%);
+        border: 1px solid #b2f5ea; border-radius: 14px;
+        padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+.hero h1 { font-size: 1.55rem; font-weight: 800; margin-bottom: .3rem; }
+.hero p  { color: #475569; font-size: .95rem; margin-bottom: .25rem; }
+.hero a  { color: #0f766e; font-weight: 600; }
+
+/* ── card ───────────────────────────────────────── */
+.card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 1.1rem 1.2rem; margin-bottom: 1rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,.05); }
+
+/* ── card header ─────────────────────────────────── */
+.card-head { display: flex; justify-content: space-between; align-items: flex-start;
+             gap: .6rem; flex-wrap: wrap; margin-bottom: .8rem; }
+.title-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.workflow-name { font-size: 1.1rem; font-weight: 700; }
+.badge  { display: inline-block; border-radius: 999px; padding: .12rem .5rem;
+          font-size: .74rem; font-weight: 700; }
+.b-ver  { background: #dbeafe; color: #1e40af; }
+.b-cat  { background: #dcfce7; color: #166534; }
+
+/* ── route bar ───────────────────────────────────── */
+.route-bar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+             background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+             padding: .5rem .7rem; margin-bottom: .85rem; }
+.method   { background: #0f766e; color: #fff; border-radius: 6px;
+            padding: .15rem .5rem; font-size: .75rem; font-weight: 800;
+            letter-spacing: .05em; flex-shrink: 0; }
+.route-path { font-family: Consolas, "Cascadia Code", monospace; font-size: .87rem;
+              color: #0f172a; flex: 1; word-break: break-all; }
+
+/* ── inputs table ────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: .6rem; }
+th { text-align: left; font-size: .75rem; text-transform: uppercase;
+     letter-spacing: .03em; color: #64748b; padding: .4rem .35rem;
+     border-bottom: 1px solid #e2e8f0; }
+td { padding: .4rem .35rem; border-bottom: 1px solid #f1f5f9; }
+td code { background: #f1f5f9; border-radius: 5px; padding: .1rem .3rem;
+          color: #1e40af; font-size: .85rem; }
+.type-pill { display: inline-block; border-radius: 999px; padding: .1rem .4rem;
+             font-size: .73rem; font-weight: 600; }
+.t-string, .t-str   { background: #fef9c3; color: #854d0e; }
+.t-int, .t-integer  { background: #dcfce7; color: #166534; }
+.t-float,.t-double,.t-number { background: #e0f2fe; color: #0369a1; }
+.t-bool,.t-boolean  { background: #fce7f3; color: #9d174d; }
+
+/* ── buttons ─────────────────────────────────────── */
+.btn { border: 0; border-radius: 8px; padding: .46rem .85rem; font-weight: 600;
+       cursor: pointer; font-size: .88rem; line-height: 1.35;
+       text-decoration: none; display: inline-block; }
+.btn-teal  { background: #0f766e; color: #fff; transition: background .15s; }
+.btn-teal:hover { background: #0d6460; }
+.btn-ghost { background: #e2e8f0; color: #0f172a; transition: background .15s; }
+.btn-ghost:hover { background: #cbd5e1; }
+
+/* ── test panel ──────────────────────────────────── */
+.test-panel { border-top: 1px solid #e2e8f0; margin-top: .85rem; padding-top: .85rem; display: none; }
+.test-panel h3 { font-size: 1rem; font-weight: 700; margin-bottom: .7rem; }
+
+.field-wrap { margin-bottom: .75rem; }
+.field-label { display: flex; align-items: center; gap: .35rem;
+               font-size: .88rem; font-weight: 600; margin-bottom: .2rem; }
+.field-desc  { font-size: .78rem; color: #64748b; margin-bottom: .3rem; }
+.form-ctrl { width: 100%; max-width: 640px; border: 1px solid #cbd5e1;
+             border-radius: 8px; padding: .44rem .55rem; font-size: .9rem;
+             font-family: inherit; background: #fff; transition: border-color .15s; }
+.form-ctrl:focus { outline: none; border-color: #0f766e;
+                   box-shadow: 0 0 0 2px rgba(15,118,110,.15); }
+textarea.form-ctrl { resize: vertical; min-height: 52px; }
+
+.action-row { display: flex; gap: .55rem; align-items: center; flex-wrap: wrap; margin-top: .7rem; }
+
+/* ── status / results ────────────────────────────── */
+.result-area { margin-top: .75rem; }
+.msg-pending { background: #eff6ff; color: #1d4ed8;
+               border-radius: 8px; padding: .55rem .75rem; font-size: .9rem; }
+.msg-error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+               border-radius: 8px; padding: .55rem .75rem; font-size: .9rem; }
+.msg-ok      { background: #f0fdf4; border: 1px solid #bbf7d0;
+               border-radius: 8px; padding: .7rem .85rem; font-size: .9rem; }
+.img-grid { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .6rem; }
+.img-card { display: flex; flex-direction: column; gap: .25rem; max-width: 260px; }
+.img-card img { border-radius: 8px; max-width: 100%; border: 1px solid #e2e8f0; }
+.img-link { font-size: .73rem; color: #0284c7; word-break: break-all; }
+
+/* ── curl block ──────────────────────────────────── */
+details.curl { margin-top: .7rem; }
+details.curl summary { cursor: pointer; font-size: .83rem; font-weight: 600;
+                       color: #475569; padding: .25rem 0; user-select: none; }
+details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
+                   padding: .75rem; font-size: .78rem; overflow-x: auto;
+                   margin-top: .4rem; white-space: pre-wrap; word-break: break-all; }
+
+.empty { text-align: center; padding: 3rem 1rem; color: #64748b; }
+.empty a { color: #0f766e; font-weight: 600; }
+
+@@media (max-width: 720px) { .page { padding: 1rem; } }
+</style>
+
+<div class="page">
+<div class="container">
+
+    <div class="hero">
+        <h1>API Explorer</h1>
+        <p>Every saved workflow is exposed as a simple REST endpoint. Fill in the mapped fields and click <strong>Send</strong> to test the full flow: <code>User → API → ComfyUI</code>.</p>
+        <p>No login required — results are polled automatically after submission.</p>
+        <p style="margin-top:.5rem;"><a href="/workflows">Manage workflows</a></p>
+    </div>
+
+    @if (!Model.Templates.Any())
+    {
+        <div class="card empty">
+            <p>No workflow templates found.</p>
+            <p style="margin-top:.4rem;"><a href="/workflows/import">Import your first workflow</a> to get started.</p>
+        </div>
+    }
+
+    @foreach (var template in Model.Templates.OrderBy(t => t.Category).ThenBy(t => t.Name))
+    {
+        var id = cardIdx++;
+        var endpointPath = ComfyBridge.Api.Pages.ApiExplorerModel.GetEndpointPath(template);
+        var curl = ComfyBridge.Api.Pages.ApiExplorerModel.BuildCurlExample(Model.BaseUrl, endpointPath, template);
+        var catDisplay = string.IsNullOrWhiteSpace(template.Category) ? "general" : template.Category;
+
+        <div class="card">
+
+            <!-- Header -->
+            <div class="card-head">
+                <div class="title-row">
+                    <span class="workflow-name">@template.Name</span>
+                    <span class="badge b-cat">@catDisplay</span>
+                    <span class="badge b-ver">v@template.Version</span>
+                </div>
+                <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
+                    <button class="btn btn-ghost" onclick="togglePanel(@id,this)">Test ▾</button>
+                </div>
+            </div>
+
+            <!-- Route -->
+            <div class="route-bar">
+                <span class="method">POST</span>
+                <span class="route-path">@endpointPath</span>
+                <button class="btn btn-ghost" style="padding:.2rem .55rem;font-size:.8rem;"
+                        onclick="copyText('@(Model.BaseUrl + endpointPath)',this)">Copy URL</button>
+            </div>
+
+            <!-- Input fields table -->
+            @if (template.Inputs.Count == 0)
+            {
+                <p style="color:#64748b;font-size:.9rem;margin-bottom:.6rem;">No mapped input fields.</p>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Type</th>
+                            <th>Maps To (ComfyUI node → field)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var input in template.Inputs)
+                        {
+                            var desc = ComfyBridge.Api.Pages.ApiExplorerModel.GetFieldDescription(template, input.Key);
+                            var tClass = input.Value.ToLower();
+                            <tr>
+                                <td><code>@input.Key</code></td>
+                                <td><span class="type-pill t-@tClass">@input.Value</span></td>
+                                <td style="color:#64748b;">@(string.IsNullOrEmpty(desc) ? "—" : desc)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <!-- ── Test Panel ───────────────────────────────── -->
+            <div class="test-panel" id="panel-@id" data-endpoint="@endpointPath">
+
+                <h3>Test this endpoint</h3>
+
+                @foreach (var input in template.Inputs)
+                {
+                    var type = input.Value.Trim().ToLower();
+                    var desc = ComfyBridge.Api.Pages.ApiExplorerModel.GetFieldDescription(template, input.Key);
+                    var isTextLong = type == "string" || type == "str";
+                    var isBool = type == "bool" || type == "boolean";
+                    var isInt = type == "int" || type == "integer";
+                    var isFloat = type is "float" or "double" or "number";
+
+                    <div class="field-wrap">
+                        <div class="field-label">
+                            <span>@input.Key</span>
+                            <span class="type-pill t-@type">@input.Value</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(desc))
+                        {
+                            <div class="field-desc">↳ @desc</div>
+                        }
+                        @if (isBool)
+                        {
+                            <select class="form-ctrl" style="max-width:180px;"
+                                    data-key="@input.Key" data-type="@input.Value">
+                                <option value="false">false</option>
+                                <option value="true">true</option>
+                            </select>
+                        }
+                        else if (isInt)
+                        {
+                            <input type="number" step="1" class="form-ctrl" style="max-width:220px;"
+                                   data-key="@input.Key" data-type="@input.Value"
+                                   placeholder="e.g. 512" />
+                        }
+                        else if (isFloat)
+                        {
+                            <input type="number" step="any" class="form-ctrl" style="max-width:220px;"
+                                   data-key="@input.Key" data-type="@input.Value"
+                                   placeholder="e.g. 7.5" />
+                        }
+                        else if (isTextLong)
+                        {
+                            <textarea class="form-ctrl"
+                                      data-key="@input.Key" data-type="@input.Value"
+                                      placeholder="Enter @input.Key..."></textarea>
+                        }
+                        else
+                        {
+                            <input type="text" class="form-ctrl"
+                                   data-key="@input.Key" data-type="@input.Value"
+                                   placeholder="Enter @input.Key" />
+                        }
+                    </div>
+                }
+
+                <div class="action-row">
+                    <button class="btn btn-teal" onclick="submitRun(@id)">▶ Send Request</button>
+                    <span style="font-size:.82rem;color:#64748b;">Result appears below</span>
+                </div>
+
+                <div class="result-area" id="result-@id"></div>
+
+                <details class="curl">
+                    <summary>Show curl example</summary>
+                    <pre>@curl</pre>
+                </details>
+
+            </div>
+            <!-- ── End Test Panel ───────────────────────────── -->
+
+        </div>
+    }
+
+</div>
+</div>
+
+<script>
+/* ── helpers ───────────────────────────────────── */
+function esc(str) {
+    return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setResult(id, type, html) {
+    const cls = type === 'ok' ? 'msg-ok' : type === 'error' ? 'msg-error' : 'msg-pending';
+    document.getElementById('result-' + id).innerHTML = `<div class="${cls}">${html}</div>`;
+}
+
+/* ── toggle test panel ─────────────────────────── */
+function togglePanel(id, btn) {
+    const p = document.getElementById('panel-' + id);
+    const open = p.style.display === 'block';
+    p.style.display = open ? 'none' : 'block';
+    btn.textContent = open ? 'Test ▾' : 'Close ▴';
+}
+
+/* ── copy URL ──────────────────────────────────── */
+function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 1400);
+    }).catch(() => prompt('Copy URL:', text));
+}
+
+/* ── cast typed value ──────────────────────────── */
+function castValue(type, raw) {
+    const t = (type || 'string').toLowerCase();
+    if (t === 'int' || t === 'integer')   return parseInt(raw, 10);
+    if (t === 'float' || t === 'double' || t === 'number') return parseFloat(raw);
+    if (t === 'bool' || t === 'boolean')  return String(raw).toLowerCase() === 'true';
+    return raw;
+}
+
+/* ── submit run ────────────────────────────────── */
+async function submitRun(id) {
+    const panel    = document.getElementById('panel-' + id);
+    const endpoint = panel.dataset.endpoint;
+    const payload  = {};
+
+    panel.querySelectorAll('[data-key]').forEach(el => {
+        payload[el.dataset.key] = castValue(el.dataset.type, el.value);
+    });
+
+    setResult(id, 'pending', '⏳ Sending request to ComfyBridge…');
+
+    let data;
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        data = await res.json();
+        if (!res.ok) {
+            setResult(id, 'error', `❌ ${esc(data.title || 'Error')}: ${esc(data.detail || 'Request failed.')}`);
+            return;
+        }
+    } catch (err) {
+        setResult(id, 'error', '❌ Network error: ' + esc(err.message));
+        return;
+    }
+
+    const jobId = data.jobId;
+    setResult(id, 'pending', `⏳ Job accepted — <strong>${esc(jobId)}</strong>. Polling for result…`);
+    await pollJob(id, jobId);
+}
+
+/* ── poll job status ───────────────────────────── */
+async function pollJob(id, jobId) {
+    const max = 90;   // 90 × 2 s = 3 min max
+    for (let i = 0; i < max; i++) {
+        await sleep(2000);
+        try {
+            const res  = await fetch('/api/v1/jobs/' + encodeURIComponent(jobId));
+            if (!res.ok) continue;
+            const job  = await res.json();
+
+            if (job.status === 'Completed') {
+                renderDone(id, job);
+                return;
+            }
+            if (job.status === 'Failed') {
+                setResult(id, 'error', '❌ Generation failed: ' + esc(job.errorMessage || 'Unknown error.'));
+                return;
+            }
+            const dots = '.'.repeat((i % 3) + 1);
+            setResult(id, 'pending', `⏳ Status: <strong>${esc(job.status)}</strong>${dots} (${i+1}/${max})`);
+        } catch { /* ignore transient fetch errors */ }
+    }
+    setResult(id, 'error', `⏰ Timed out. Check status manually: <a href="/api/v1/jobs/${encodeURIComponent(jobId)}" target="_blank">View job</a>`);
+}
+
+/* ── render completed job ──────────────────────── */
+function renderDone(id, job) {
+    let html = '<strong>✅ Generation complete!</strong>';
+
+    if (Array.isArray(job.assetUrls) && job.assetUrls.length > 0) {
+        html += '<div class="img-grid">';
+        for (const url of job.assetUrls) {
+            const s = esc(url);
+            html += `<div class="img-card">
+                       <img src="${s}" alt="result"
+                            onerror="this.style.display='none'" />
+                       <a class="img-link" href="${s}" target="_blank">${s}</a>
+                     </div>`;
+        }
+        html += '</div>';
+    }
+
+    html += `<details style="margin-top:.5rem;">
+               <summary style="cursor:pointer;font-size:.8rem;color:#64748b;">Raw response</summary>
+               <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.65rem;
+                           font-size:.78rem;overflow:auto;max-height:260px;margin-top:.35rem;">${esc(JSON.stringify(job,null,2))}</pre>
+             </details>`;
+
+    setResult(id, 'ok', html);
+}
+</script>

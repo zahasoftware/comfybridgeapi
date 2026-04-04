@@ -59,6 +59,19 @@
                 <label asp-for="Version">Version</label>
                 <input asp-for="Version" />
             </div>
+            <div>
+                <label asp-for="Category">Category</label>
+                <select asp-for="Category" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:.55rem;">
+                    <option value="">— none —</option>
+                    <option value="text2image">text2image</option>
+                    <option value="text2video">text2video</option>
+                    <option value="image2image">image2image</option>
+                    <option value="image2video">image2video</option>
+                    <option value="inpainting">inpainting</option>
+                    <option value="upscale">upscale</option>
+                    <option value="general">general</option>
+                </select>
+            </div>
         </div>
 
         <div class="card">
@@ -103,7 +116,10 @@
                     @for (var i = 0; i < Model.Inputs.Count; i++)
                     {
                         <tr>
-                            <td><input asp-for="Inputs[i].InputName" /></td>
+                            <td>
+                                <input type="hidden" name="Inputs.Index" value="@i" />
+                                <input asp-for="Inputs[i].InputName" />
+                            </td>
                             <td><input asp-for="Inputs[i].InputType" /></td>
                             <td><input asp-for="Inputs[i].NodeId" /></td>
                             <td><input asp-for="Inputs[i].NodeClass" /></td>
@@ -144,7 +160,10 @@
         const i = rowIndex++;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><input name="Inputs[${i}].InputName" value="" class="form-control" /></td>
+            <td>
+                <input type="hidden" name="Inputs.Index" value="${i}" />
+                <input name="Inputs[${i}].InputName" value="" />
+            </td>
             <td><input name="Inputs[${i}].InputType" value="string" /></td>
             <td><input name="Inputs[${i}].NodeId" value="" /></td>
             <td><input name="Inputs[${i}].NodeClass" value="" /></td>

@@ -10,9 +10,38 @@
         body { font-family: "Segoe UI", sans-serif; background: #f8fafc; color: #111827; line-height: 1.5; }
         a { color: #0284c7; text-decoration: none; }
         a:hover { text-decoration: underline; }
+
+        /* ── top navigation ────────────────────── */
+        .top-nav {
+            background: #0f766e;
+            padding: .65rem 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .top-nav .brand {
+            font-weight: 800;
+            font-size: 1rem;
+            color: #fff;
+            letter-spacing: -.01em;
+            text-decoration: none;
+            margin-right: auto;
+        }
+        .top-nav a {
+            color: rgba(255,255,255,.85);
+            font-size: .9rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .top-nav a:hover { color: #fff; text-decoration: none; }
     </style>
 </head>
 <body>
+    <nav class="top-nav">
+        <span class="brand">ComfyBridge</span>
+        <a href="/workflows">Workflows</a>
+        <a href="/api-explorer">API Explorer</a>
+    </nav>
     @RenderBody()
 </body>
 </html>

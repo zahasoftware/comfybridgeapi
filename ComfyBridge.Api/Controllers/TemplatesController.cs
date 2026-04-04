@@ -17,6 +17,7 @@ public sealed class TemplatesController(ITemplateService templateService) : Cont
         {
             Name = t.Name,
             Version = t.Version,
+            Category = t.Category,
             Inputs = t.Inputs
         });
 

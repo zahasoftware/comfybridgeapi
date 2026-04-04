@@ -21,6 +21,9 @@ public sealed class EditModel(
     public string Version { get; set; } = "1.0";
 
     [BindProperty]
+    public string Category { get; set; } = string.Empty;
+
+    [BindProperty]
     public string WorkflowJson { get; set; } = string.Empty;
 
     [BindProperty]
@@ -60,6 +63,7 @@ public sealed class EditModel(
         OriginalKey = id;
         Name = template.Name;
         Version = template.Version;
+        Category = template.Category;
         WorkflowJson = template.Workflow.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         DetectedNodeTypes = ExtractNodeTypes(template.Workflow);
         Inputs = template.Mapping
@@ -228,6 +232,7 @@ public sealed class EditModel(
         {
             Name = Name,
             Version = Version,
+            Category = Category,
             Workflow = workflowNode,
             Inputs = inputs,
             Mapping = mapping
