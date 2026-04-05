@@ -138,6 +138,7 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
         var endpointPath = ComfyBridge.Api.Pages.ApiExplorerModel.GetEndpointPath(template);
         var curl = ComfyBridge.Api.Pages.ApiExplorerModel.BuildCurlExample(Model.BaseUrl, endpointPath, template);
         var catDisplay = string.IsNullOrWhiteSpace(template.Category) ? "general" : template.Category;
+        var defaults = ComfyBridge.Api.Pages.ApiExplorerModel.GetWorkflowDefaultValues(template);
 
         <div class="card">
 
@@ -204,6 +205,7 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
                     var isBool = type == "bool" || type == "boolean";
                     var isInt = type == "int" || type == "integer";
                     var isFloat = type is "float" or "double" or "number";
+                    var dflt = defaults.GetValueOrDefault(input.Key, "");
 
                     <div class="field-wrap">
                         <div class="field-label">
@@ -218,32 +220,43 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
                         {
                             <select class="form-ctrl" style="max-width:180px;"
                                     data-key="@input.Key" data-type="@input.Value">
-                                <option value="false">false</option>
-                                <option value="true">true</option>
+                                @if (dflt == "true")
+                                {
+                                    <option value="false">false</option>
+                                    <option value="true" selected="selected">true</option>
+                                }
+                                else
+                                {
+                                    <option value="false" selected="selected">false</option>
+                                    <option value="true">true</option>
+                                }
                             </select>
                         }
                         else if (isInt)
                         {
                             <input type="number" step="1" class="form-ctrl" style="max-width:220px;"
                                    data-key="@input.Key" data-type="@input.Value"
+                                   value="@dflt"
                                    placeholder="e.g. 512" />
                         }
                         else if (isFloat)
                         {
                             <input type="number" step="any" class="form-ctrl" style="max-width:220px;"
                                    data-key="@input.Key" data-type="@input.Value"
+                                   value="@dflt"
                                    placeholder="e.g. 7.5" />
                         }
                         else if (isTextLong)
                         {
                             <textarea class="form-ctrl"
                                       data-key="@input.Key" data-type="@input.Value"
-                                      placeholder="Enter @input.Key..."></textarea>
+                                      placeholder="Enter @input.Key...">@dflt</textarea>
                         }
                         else
                         {
                             <input type="text" class="form-ctrl"
                                    data-key="@input.Key" data-type="@input.Value"
+                                   value="@dflt"
                                    placeholder="Enter @input.Key" />
                         }
                     </div>
