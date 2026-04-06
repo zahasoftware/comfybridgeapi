@@ -136,7 +136,6 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
     {
         var id = cardIdx++;
         var endpointPath = ComfyBridge.Api.Pages.ApiExplorerModel.GetEndpointPath(template);
-        var curl = ComfyBridge.Api.Pages.ApiExplorerModel.BuildCurlExample(Model.BaseUrl, endpointPath, template);
         var catDisplay = string.IsNullOrWhiteSpace(template.Category) ? "general" : template.Category;
         var defaults = ComfyBridge.Api.Pages.ApiExplorerModel.GetWorkflowDefaultValues(template);
 
@@ -193,7 +192,7 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
             }
 
             <!-- ── Test Panel ───────────────────────────────── -->
-            <div class="test-panel" id="panel-@id" data-endpoint="@endpointPath">
+            <div class="test-panel" id="panel-@id" data-endpoint="@endpointPath" data-base-url="@Model.BaseUrl">
 
                 <h3>Test this endpoint</h3>
 
@@ -269,9 +268,9 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
 
                 <div class="result-area" id="result-@id"></div>
 
-                <details class="curl">
-                    <summary>Show curl example</summary>
-                    <pre>@curl</pre>
+                <details class="curl" ontoggle="onCodeToggle(@id, this)">
+                    <summary>Show code example</summary>
+                    <pre id="curl-@id"></pre>
                 </details>
 
             </div>
@@ -297,12 +296,44 @@ function setResult(id, type, html) {
     document.getElementById('result-' + id).innerHTML = `<div class="${cls}">${html}</div>`;
 }
 
+/* ── code example (Invoke-RestMethod — PowerShell / cross-platform) ── */
+function buildCodeExample(id) {
+    const panel   = document.getElementById('panel-' + id);
+    const url     = panel.dataset.baseUrl + panel.dataset.endpoint;
+    const payload = {};
+    panel.querySelectorAll('[data-key]').forEach(el => {
+        payload[el.dataset.key] = castValue(el.dataset.type, el.value);
+    });
+    const json = JSON.stringify(payload, null, 2);
+    const jsonSingleLine = JSON.stringify(payload);
+    // Single-quote escape for PowerShell string literals
+    const jsonPs = jsonSingleLine.replace(/'/g, "''");
+    return `# PowerShell (Windows & Linux)\n$body = '${jsonPs}'\nInvoke-RestMethod -Method Post -Uri '${url}' -ContentType 'application/json' -Body $body\n\n# curl (Windows 10+ / Linux / macOS)\ncurl -X POST "${url}" \\\n  -H "Content-Type: application/json" \\\n  -d "${jsonSingleLine.replace(/"/g, '\\"')}"`.trim();
+}
+
+function onCodeToggle(id, details) {
+    if (!details.open) return;
+    document.getElementById('curl-' + id).textContent = buildCodeExample(id);
+}
+
+function refreshCodeIfOpen(id) {
+    const details = document.querySelector('#panel-' + id + ' details.curl');
+    if (details && details.open) {
+        document.getElementById('curl-' + id).textContent = buildCodeExample(id);
+    }
+}
+
 /* ── toggle test panel ─────────────────────────── */
 function togglePanel(id, btn) {
     const p = document.getElementById('panel-' + id);
     const open = p.style.display === 'block';
     p.style.display = open ? 'none' : 'block';
     btn.textContent = open ? 'Test ▾' : 'Close ▴';
+    if (!open && !p._listenersAttached) {
+        p._listenersAttached = true;
+        p.addEventListener('input',  () => refreshCodeIfOpen(id));
+        p.addEventListener('change', () => refreshCodeIfOpen(id));
+    }
 }
 
 /* ── copy URL ──────────────────────────────────── */
