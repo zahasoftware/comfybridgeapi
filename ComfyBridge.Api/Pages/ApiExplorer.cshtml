@@ -418,13 +418,15 @@ function renderDone(id, job) {
     let html = '<strong>✅ Generation complete!</strong>';
 
     if (Array.isArray(job.assetUrls) && job.assetUrls.length > 0) {
+        const encodedJobId = encodeURIComponent(job.jobId || '');
         html += '<div class="img-grid">';
-        for (const url of job.assetUrls) {
-            const s = esc(url);
+        for (let i = 0; i < job.assetUrls.length; i++) {
+            const downloadUrl = `/api/v1/jobs/${encodedJobId}/outputs/${i}`;
+            const s = esc(downloadUrl);
             html += `<div class="img-card">
                        <img src="${s}" alt="result"
                             onerror="this.style.display='none'" />
-                       <a class="img-link" href="${s}" target="_blank">${s}</a>
+                       <a class="img-link" href="${s}" target="_blank">Download output #${i}</a>
                      </div>`;
         }
         html += '</div>';

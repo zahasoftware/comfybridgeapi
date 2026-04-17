@@ -31,13 +31,38 @@ packages/
 .idea/
 *.sln.iml
 
-# Python virtual environments and caches
+# Python files, environments, and tooling artifacts
+*.py
+*.py[cod]
+*.pyd
+*.pyo
+*.ipynb
+
 .venv/
 venv/
+env/
+ENV/
 __pycache__/
-*.py[cod]
+
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.pyre/
+
+.coverage
+.coverage.*
+htmlcov/
+
+dist/
+build/
+site/
+pip-wheel-metadata/
+*.egg-info/
+
+.python-version
 
 # OS files
 .DS_Store

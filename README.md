@@ -1,45 +1,55 @@
 # ComfyBridge API
 
-ComfyBridge API is a middleware service that exposes clean, stable endpoints for image generation while hiding ComfyUI workflow complexity.
+ComfyBridge API is a .NET 9 service that sits in front of ComfyUI and exposes stable endpoints for workflow-based generation.
 
-It lets client apps:
-- Call simple endpoints
-- Use named templates instead of raw ComfyUI JSON
-- Inject runtime inputs into reusable workflow templates
-- Track asynchronous generation jobs
+It provides:
+- Job-based image generation (`202 Accepted` + polling)
+- Template discovery and dynamic run endpoints
+- Workflow analyze/save APIs
+- Built-in Razor Pages UI for workflow import/testing
 
-## 1. Prerequisites
+## What Is Implemented
 
-Install the following:
+### API endpoints
+- `POST /api/v1/generate/image`
+- `POST /api/v1/generate/video` (currently returns `501 Not Implemented`)
+- `GET /api/v1/jobs/{jobId}`
+- `GET /api/v1/templates`
+- `POST /api/v1/{category}/{name}` (dynamic run endpoint, latest version by name)
+- `GET /api/v1/workflows/templates`
+- `POST /api/v1/workflows/analyze`
+- `POST /api/v1/workflows/save`
+- `DELETE /api/v1/workflows/templates/{name}/{version}`
+
+### Built-in web pages
+- `/workflows`
+- `/workflows/import`
+- `/workflows/{id}`
+- `/workflows/edit/{id}`
+- `/workflows/test/{id}`
+- `/api-explorer`
+
+### OpenAPI
+- In Development environment, OpenAPI is mapped with `MapOpenApi()`.
+
+## Prerequisites
+
 - .NET SDK 9.0+
-- ComfyUI running and reachable (default: http://127.0.0.1:8188)
-- At least one valid ComfyUI model/workflow environment in your ComfyUI instance
+- ComfyUI running and reachable
+- At least one usable workflow/model setup in ComfyUI
 
-Optional:
-- Redis (only if you later implement RedisJobStore; current default store is in-memory)
+## Configuration
 
-## 2. Project Structure
+Configuration files:
+- `ComfyBridge.Api/appsettings.json`
+- `ComfyBridge.Api/appsettings.Development.json`
 
-```text
-ComfyBridgeAPI.sln
-ComfyBridge.Api/                # API host, controllers, middleware, background worker
-ComfyBridge.Application/        # Use cases, contracts, orchestration services
-ComfyBridge.Domain/             # Domain models, enums, exceptions
-ComfyBridge.Infrastructure/     # Template repository, job store, queue, ComfyUI client
-```
-
-## 3. Configure the API
-
-Main configuration is in:
-- ComfyBridge.Api/appsettings.json
-- ComfyBridge.Api/appsettings.Development.json
-
-Important settings:
+Current defaults:
 
 ```json
 {
   "ComfyUi": {
-    "BaseUrl": "http://127.0.0.1:8188",
+    "BaseUrl": "http://127.0.0.1:8189",
     "PollIntervalMs": 1000,
     "JobTimeoutSeconds": 120
   },
@@ -59,22 +69,12 @@ Important settings:
 }
 ```
 
-What to change:
-1. Set ComfyUi.BaseUrl to your ComfyUI server URL.
-2. Keep TemplateStorage.TemplatesPath as Templates unless you want another folder.
-3. Configure WorkflowAi to your AI provider endpoint (Ollama/custom).
-4. Keep JobStore.Provider as InMemory unless Redis is implemented.
+Update at least:
+1. `ComfyUi.BaseUrl` to match your ComfyUI instance.
+2. `WorkflowAi` values if using workflow analysis features.
+3. `TemplateStorage.TemplatesPath` only if you want a different template folder.
 
-## 4. Run ComfyUI First
-
-Start ComfyUI and verify these endpoints are available:
-- POST /prompt
-- GET /history/{prompt_id}
-- GET /view
-
-If ComfyUI is not running, generation jobs will move to Failed with upstream errors.
-
-## 5. Build and Run the API
+## Run The App
 
 From repository root:
 
@@ -84,82 +84,122 @@ dotnet build .\ComfyBridgeAPI.sln
 dotnet run --project .\ComfyBridge.Api\ComfyBridge.Api.csproj
 ```
 
-Default local URL (from launch settings):
-- http://localhost:5176
+Default URLs (from launch settings):
+- HTTP: `http://localhost:5176`
+- HTTPS: `https://localhost:7051`
 
-When startup is successful, logs show:
-- Generation worker started
-- Now listening on: http://localhost:5176
+## How To Use ComfyBridge.Api
 
-## 6. Public API Endpoints
+### 1) Ensure ComfyUI is reachable
 
-- POST /api/v1/generate/image
-- POST /api/v1/generate/video (reserved/future, returns 501)
-- GET /api/v1/jobs/{jobId}
-- GET /api/v1/templates
-- GET /api/v1/workflows/templates
-- POST /api/v1/workflows/analyze
-- POST /api/v1/workflows/save
-- DELETE /api/v1/workflows/templates/{name}/{version}
+ComfyBridge expects ComfyUI APIs to be available (prompt submission/history/view flow). If ComfyUI is down, jobs end as failed.
 
-## 6.1 Workflow Manager UI
+### 2) Check available templates
 
-The API host now includes Razor Pages for template workflow management:
+```http
+GET /api/v1/templates
+```
 
-- /workflows
-  - List templates
-  - View template details
-  - Test templates with sample inputs
-  - Delete templates
-- /workflows/import
-  - Upload JSON file (max 1 MB) or paste workflow JSON
-  - Analyze and generate draft template using AI service
-- /workflows/{id}
-  - Review raw workflow JSON
-  - Edit input names/types and node mapping (nodeId/nodeClass/field)
-  - Save validated template to configured templates folder
-- /workflows/test/{id}
-  - Execute a template test run from UI
-  - Submit input values using the template schema
-  - Get JobId and status endpoint link
+### 3) Submit a generation job (template route)
 
-End-to-end flow:
-1. Import workflow JSON.
-2. Analyzer detects prompt/numeric/image fields and produces mapping.
-3. Review and manually override mappings.
-4. Save template to disk.
+```http
+POST /api/v1/generate/image
+Content-Type: application/json
 
-## 7. How to Add New Workflows (No Code Changes)
+{
+  "template": "txt2img-basic",
+  "inputs": {
+    "prompt": "a cinematic dragon flying over mountains",
+    "width": 512,
+    "height": 512,
+    "steps": 30,
+    "cfg": 7.5,
+    "seed": 42
+  }
+}
+```
 
-Templates are loaded from:
-- ComfyBridge.Api/Templates
+Expected response: `202 Accepted` with `jobId` and `status`.
 
-### Step-by-step
+### 4) Poll job status
 
-1. Export or prepare a valid ComfyUI workflow JSON.
-2. Create a new template file in ComfyBridge.Api/Templates, for example:
-   - my-workflow.1.0.json
-3. Define template metadata:
-   - name
-   - version
-   - inputs (public input schema)
-   - mapping (how inputs are injected)
-   - workflow (raw ComfyUI graph)
-4. Restart API (or redeploy) so templates are reloaded on next read.
-5. Call GET /api/v1/templates to confirm template appears.
+```http
+GET /api/v1/jobs/{jobId}
+```
 
-Alternative:
-- Use /workflows/import and complete the guided import/analyze/review/save flow in UI.
+Terminal states are `Completed` or `Failed`.
 
-### Template Contract
+### 5) Use dynamic endpoint per template category/name
+
+```http
+POST /api/v1/{category}/{name}
+Content-Type: application/json
+```
+
+Important behavior:
+- It resolves the latest version of `{name}`.
+- Body must include exactly the declared input keys for that template.
+- Unknown fields or missing fields return validation errors.
+
+Example:
 
 ```json
 {
+  "prompt": "ultra detailed cyberpunk city",
+  "steps": 25,
+  "cfg": 7
+}
+```
+
+### 6) Use the browser UI (optional)
+
+Open:
+- `http://localhost:5176/workflows` for workflow management
+- `http://localhost:5176/api-explorer` to test generated dynamic endpoints from a UI
+
+## Template Storage And Formats
+
+Templates are loaded from `TemplateStorage:TemplatesPath`.
+
+The app supports two layouts:
+
+1. Legacy flat file
+- `{name}.{version}.json`
+- If the file is a raw ComfyUI graph, it is treated as a legacy workflow template with empty public input mapping.
+
+2. Folder layout (used by save flow)
+- `{name}.{version}/template.json`
+- `{name}.{version}/raw-workflow.json`
+- `{name}.{version}/mapping.json`
+
+`mapping.json` is treated as the authoritative source for `inputs` and `mapping` in the folder layout.
+
+## Workflow APIs
+
+### Analyze workflow JSON
+
+```http
+POST /api/v1/workflows/analyze
+Content-Type: application/json
+
+{
+  "workflowJson": "{ ... raw ComfyUI JSON as string ... }"
+}
+```
+
+### Save template
+
+```http
+POST /api/v1/workflows/save
+Content-Type: application/json
+
+{
   "name": "txt2img-basic",
   "version": "1.0",
+  "category": "text2image",
+  "workflowJson": "{ ... raw ComfyUI JSON as string ... }",
   "inputs": {
     "prompt": "string",
-    "checkpointName": "string",
     "steps": "int"
   },
   "mapping": {
@@ -171,148 +211,31 @@ Alternative:
     "steps": {
       "nodeClass": "KSampler",
       "field": "steps"
-    },
-    "checkpointName": {
-      "nodeClass": "CheckpointLoaderSimple",
-      "field": "ckpt_name"
     }
-  },
-  "workflow": {
-    "...": {}
   }
 }
 ```
 
-### Mapping Options Supported
+Validation notes:
+- `workflowJson` is required and must be valid JSON object.
+- Max workflow JSON size is 2 MB.
 
-For each input, mapping supports one of these patterns:
-
-1. jsonPointer
-- Direct JSON pointer path into the workflow.
-- Example: /3/inputs/steps
-
-2. nodeClass + field (+ optional nodeIndex)
-- Finds node(s) by ComfyUI class_type.
-- Uses nodeIndex when multiple nodes share same class.
-- This is preferred to reduce coupling to static node IDs.
-
-3. nodeId + field
-- Explicit node ID targeting.
-- Supported as fallback, but less resilient if IDs change.
-
-## 8. Test the API
-
-Use the included HTTP file:
-- ComfyBridge.Api/ComfyBridge.Api.http
-
-### Test flow
-
-1. List templates
-- GET /api/v1/templates
-
-2. Submit image generation job
-- POST /api/v1/generate/image
-- Example body:
-
-```json
-{
-  "template": "txt2img-basic",
-  "inputs": {
-    "prompt": "a cinematic dragon flying over mountains",
-    "negativePrompt": "blurry, low quality",
-    "steps": 30,
-    "cfg": 7.5,
-    "seed": 42,
-    "width": 1024,
-    "height": 576,
-    "checkpointName": "flux1-dev-fp8.safetensors"
-  }
-}
-```
-
-Windows curl example:
+## Quick Local Test (curl)
 
 ```powershell
-curl.exe -X POST "http://localhost:5176/api/v1/generate/image" -H "Content-Type: application/json" -d "{\"template\":\"txt2img-basic:1.0\",\"inputs\":{\"prompt\":\"a cinematic dragon flying over mountains\",\"steps\":30,\"cfg\":7.5,\"seed\":42}}"
+curl.exe -X POST "http://localhost:5176/api/v1/generate/image" `
+  -H "Content-Type: application/json" `
+  -d "{\"template\":\"txt2img-basic\",\"inputs\":{\"prompt\":\"a cinematic dragon flying over mountains\",\"steps\":30,\"cfg\":7.5,\"seed\":42}}"
 ```
 
-bash curl example:
+Then:
 
-```bash
-curl -X POST 'http://localhost:5176/api/v1/generate/image' \
-  -H 'Content-Type: application/json' \
-  -d '{"template":"txt2img-basic:1.0","inputs":{"prompt":"a cinematic dragon flying over mountains","steps":30,"cfg":7.5,"seed":42}}'
+```powershell
+curl.exe "http://localhost:5176/api/v1/jobs/<jobId>"
 ```
 
-**Note:** `checkpointName` must be a model available in your ComfyUI instance. Check ComfyUI's model manager or API logs to find available checkpoints.
+## Notes
 
-3. Read response and capture jobId
-- API returns 202 Accepted with jobId and initial status.
-
-4. Poll job status
-- GET /api/v1/jobs/{jobId}
-- Repeat until status is Completed or Failed.
-
-5. Read results
-- On Completed, response includes assetUrls and raw result payload.
-
-## 9. Understanding Job Lifecycle
-
-Job states:
-- Pending: request accepted, queued
-- Running: submitted to ComfyUI, waiting result
-- Completed: result collected
-- Failed: validation, upstream, or timeout error
-
-Internally:
-1. Request validated
-2. Template loaded
-3. Inputs injected into workflow
-4. Job created and queued
-5. Background worker submits to ComfyUI
-6. Worker polls history
-7. Job updated with result or failure
-
-## 10. Common Issues and Fixes
-
-1. Template not found
-- Cause: wrong template name/version in request
-- Fix: call GET /api/v1/templates and match exactly
-
-2. Invalid input
-- Cause: missing required inputs or type mismatch
-- Fix: align request inputs with template inputs schema
-
-3. Model/Checkpoint not in list (400 Bad Request)
-- Cause: checkpointName doesn't exist in ComfyUI, or template hardcodes unavailable model
-- Fix: 
-  - Run ComfyUI and check available models in the model manager
-  - Pass the correct checkpointName in your request
-  - Or update the template default in workflow.json if the model is unavailable globally
-
-4. Upstream failure (502)
-- Cause: ComfyUI unavailable or rejected prompt
-- Fix: verify ComfyUI URL and check ComfyUI logs
-
-5. Timeout (504)
-- Cause: generation exceeded JobTimeoutSeconds
-- Fix: increase ComfyUi.JobTimeoutSeconds
-
-6. Empty results
-- Cause: workflow does not produce image outputs expected by parser
-- Fix: ensure workflow history contains output images and SaveImage path is valid
-
-## 11. Production Notes
-
-Current implementation is production-oriented but minimal:
-- Clean architecture boundaries are in place
-- Interfaces and DI are used throughout
-- In-memory store is active
-- Redis store is scaffolded but not yet implemented
-
-Recommended next hardening steps:
-1. Implement RedisJobStore
-2. Add API key authentication
-3. Add rate limiting
-4. Add WebSocket/SignalR push updates for job progress
-5. Add workflow schema validation on template load
+- Current job storage provider is `InMemory`.
+- `POST /api/v1/generate/video` is reserved for future workflows.
+- `ComfyBridge.Api/ComfyBridge.Api.http` contains ready-to-run local requests.

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net;
 using System.Text.Json.Nodes;
 using ComfyBridge.Application.Contracts;
 using ComfyBridge.Domain.Exceptions;
@@ -65,6 +66,48 @@ public sealed class ComfyClient(
         throw new TimeoutException($"Timed out waiting for ComfyUI prompt '{externalExecutionId}'.");
     }
 
+    public async Task<DownloadedAsset> DownloadAssetAsync(string assetUrl, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(assetUrl))
+        {
+            throw new InputValidationException("Asset URL is required.");
+        }
+
+        if (!Uri.TryCreate(assetUrl, UriKind.Absolute, out var assetUri))
+        {
+            throw new InputValidationException("Asset URL is invalid.");
+        }
+
+        if (httpClient.BaseAddress is not null &&
+            !string.Equals(assetUri.Host, httpClient.BaseAddress.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InputValidationException("Asset URL host does not match configured ComfyUI host.");
+        }
+
+        using var response = await httpClient.GetAsync(assetUri, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new ComfyBridgeException("Generated asset was not found in ComfyUI output storage.");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new ExternalServiceException($"ComfyUI asset download failed: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
+        }
+
+        var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        var fileName = ResolveFileNameFromAssetUrl(assetUri) ?? "output.bin";
+
+        return new DownloadedAsset
+        {
+            FileName = fileName,
+            ContentType = contentType,
+            Content = content
+        };
+    }
+
     private GenerationResult? TryBuildResultFromHistory(string promptId, JsonObject? history)
     {
         var promptNode = history?[promptId] as JsonObject;
@@ -126,5 +169,34 @@ public sealed class ComfyClient(
             AssetUrls = urls,
             RawResult = promptNode?.DeepClone()
         };
+    }
+
+    private static string? ResolveFileNameFromAssetUrl(Uri assetUri)
+    {
+        var query = assetUri.Query;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        var parts = query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length != 2)
+            {
+                continue;
+            }
+
+            if (!string.Equals(kv[0], "filename", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var decoded = Uri.UnescapeDataString(kv[1]);
+            return string.IsNullOrWhiteSpace(decoded) ? null : decoded;
+        }
+
+        return null;
     }
 }
