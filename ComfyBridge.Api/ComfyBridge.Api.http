@@ -5,21 +5,18 @@ Accept: application/json
 
 ###
 
-POST {{ComfyBridge_Api_HostAddress}}/api/v1/generate/image
+POST {{ComfyBridge_Api_HostAddress}}/api/v1/text2image/txt2img-basic
 Content-Type: application/json
 
 {
-	"template": "txt2img-basic",
-	"inputs": {
-		"prompt": "a cinematic dragon flying over mountains",
-		"negativePrompt": "blurry, low quality",
-		"steps": 30,
-		"cfg": 7.5,
-		"seed": 42,
-		"width": 1024,
-		"height": 576,
-		"checkpointName": "flux1-dev-fp8.safetensors"
-	}
+	"prompt": "a cinematic dragon flying over mountains",
+	"negativePrompt": "blurry, low quality",
+	"steps": 30,
+	"cfg": 7.5,
+	"seed": 42,
+	"width": 1024,
+	"height": 576,
+	"checkpointName": "flux1-dev-fp8.safetensors"
 }
 
 ###

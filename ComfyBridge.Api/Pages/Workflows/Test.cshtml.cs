@@ -9,6 +9,9 @@ namespace ComfyBridge.Api.Pages.Workflows;
 public sealed class TestModel(ITemplateService templateService, IGenerationService generationService) : PageModel
 {
     [BindProperty]
+    public string TemplateCategory { get; set; } = "general";
+
+    [BindProperty]
     public string TemplateName { get; set; } = string.Empty;
 
     [BindProperty]
@@ -37,6 +40,7 @@ public sealed class TestModel(ITemplateService templateService, IGenerationServi
         }
 
         var template = await templateService.GetTemplateAsync(split[0], split[1], cancellationToken);
+        TemplateCategory = string.IsNullOrWhiteSpace(template.Category) ? "general" : template.Category;
         TemplateName = template.Name;
         TemplateVersion = template.Version;
         Inputs = template.Inputs
@@ -59,6 +63,11 @@ public sealed class TestModel(ITemplateService templateService, IGenerationServi
             ErrorMessage = "Template name and version are required.";
             BuildCurlExamples();
             return Page();
+        }
+
+        if (string.IsNullOrWhiteSpace(TemplateCategory))
+        {
+            TemplateCategory = "general";
         }
 
         try
@@ -112,13 +121,14 @@ public sealed class TestModel(ITemplateService templateService, IGenerationServi
     private void BuildCurlExamples()
     {
         var payload = BuildExamplePayload();
+        var endpoint = $"http://localhost:5176/api/v1/{TemplateCategory}/{TemplateName}";
         WindowsCurlExample =
-            "curl.exe -X POST \"http://localhost:5176/api/v1/generate/image\" -H \"Content-Type: application/json\" -d \"" +
+            "curl.exe -X POST \"" + endpoint + "\" -H \"Content-Type: application/json\" -d \"" +
             payload.Replace("\"", "\\\"") +
             "\"";
 
         BashCurlExample =
-            "curl -X POST 'http://localhost:5176/api/v1/generate/image' \\\n  -H 'Content-Type: application/json' \\\n  -d '" + payload.Replace("'", "'\\''") + "'";
+            "curl -X POST '" + endpoint + "' \\\n  -H 'Content-Type: application/json' \\\n  -d '" + payload.Replace("'", "'\\''") + "'";
     }
 
     private string BuildExamplePayload()
@@ -141,11 +151,7 @@ public sealed class TestModel(ITemplateService templateService, IGenerationServi
             };
         }
 
-        var payload = new JsonObject
-        {
-            ["template"] = $"{TemplateName}:{TemplateVersion}",
-            ["inputs"] = exampleInputs
-        };
+        var payload = exampleInputs;
 
         return payload.ToJsonString();
     }

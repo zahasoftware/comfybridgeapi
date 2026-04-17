@@ -11,8 +11,6 @@ It provides:
 ## What Is Implemented
 
 ### API endpoints
-- `POST /api/v1/generate/image`
-- `POST /api/v1/generate/video` (currently returns `501 Not Implemented`)
 - `GET /api/v1/jobs/{jobId}`
 - `GET /api/v1/templates`
 - `POST /api/v1/{category}/{name}` (dynamic run endpoint, latest version by name)
@@ -100,22 +98,19 @@ ComfyBridge expects ComfyUI APIs to be available (prompt submission/history/view
 GET /api/v1/templates
 ```
 
-### 3) Submit a generation job (template route)
+### 3) Submit a generation job (dynamic run route)
 
 ```http
-POST /api/v1/generate/image
+POST /api/v1/text2image/txt2img-basic
 Content-Type: application/json
 
 {
-  "template": "txt2img-basic",
-  "inputs": {
-    "prompt": "a cinematic dragon flying over mountains",
-    "width": 512,
-    "height": 512,
-    "steps": 30,
-    "cfg": 7.5,
-    "seed": 42
-  }
+  "prompt": "a cinematic dragon flying over mountains",
+  "width": 512,
+  "height": 512,
+  "steps": 30,
+  "cfg": 7.5,
+  "seed": 42
 }
 ```
 
@@ -223,9 +218,9 @@ Validation notes:
 ## Quick Local Test (curl)
 
 ```powershell
-curl.exe -X POST "http://localhost:5176/api/v1/generate/image" `
+curl.exe -X POST "http://localhost:5176/api/v1/text2image/txt2img-basic" `
   -H "Content-Type: application/json" `
-  -d "{\"template\":\"txt2img-basic\",\"inputs\":{\"prompt\":\"a cinematic dragon flying over mountains\",\"steps\":30,\"cfg\":7.5,\"seed\":42}}"
+  -d "{\"prompt\":\"a cinematic dragon flying over mountains\",\"steps\":30,\"cfg\":7.5,\"seed\":42}"
 ```
 
 Then:
@@ -237,5 +232,4 @@ curl.exe "http://localhost:5176/api/v1/jobs/<jobId>"
 ## Notes
 
 - Current job storage provider is `InMemory`.
-- `POST /api/v1/generate/video` is reserved for future workflows.
 - `ComfyBridge.Api/ComfyBridge.Api.http` contains ready-to-run local requests.
