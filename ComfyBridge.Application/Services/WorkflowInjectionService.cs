@@ -34,6 +34,13 @@ public sealed class WorkflowInjectionService : IWorkflowInjectionService
                 throw new InputValidationException($"Missing required input '{name}'.");
             }
 
+            // For integer fields, accept compatible values and normalize to int.
+            if (IsIntegerType(type) && TryCoerceInteger(value, out var coercedInteger))
+            {
+                inputs[name] = JsonValue.Create(coercedInteger);
+                continue;
+            }
+
             if (!IsTypeMatch(type, value))
             {
                 throw new InputValidationException($"Input '{name}' expected type '{type}'.");
@@ -48,11 +55,68 @@ public sealed class WorkflowInjectionService : IWorkflowInjectionService
         return expectedType switch
         {
             "string" => value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out _),
-            "int" or "integer" => value is JsonValue integerValue && integerValue.TryGetValue<int>(out _),
+            "int" or "integer" => TryCoerceInteger(value, out _),
             "float" or "double" or "number" => value is JsonValue numberValue && (numberValue.TryGetValue<double>(out _) || numberValue.TryGetValue<decimal>(out _)),
             "bool" or "boolean" => value is JsonValue boolValue && boolValue.TryGetValue<bool>(out _),
             _ => true
         };
+    }
+
+    private static bool IsIntegerType(string expectedType)
+    {
+        var normalized = expectedType.Trim().ToLowerInvariant();
+        return normalized is "int" or "integer";
+    }
+
+    private static bool TryCoerceInteger(JsonNode value, out int result)
+    {
+        result = default;
+
+        if (value is not JsonValue jsonValue)
+        {
+            return false;
+        }
+
+        if (jsonValue.TryGetValue<int>(out result))
+        {
+            return true;
+        }
+
+        if (jsonValue.TryGetValue<long>(out var longValue)
+            && longValue >= int.MinValue
+            && longValue <= int.MaxValue)
+        {
+            result = (int)longValue;
+            return true;
+        }
+
+        if (jsonValue.TryGetValue<decimal>(out var decimalValue)
+            && decimalValue >= int.MinValue
+            && decimalValue <= int.MaxValue
+            && decimal.Truncate(decimalValue) == decimalValue)
+        {
+            result = (int)decimalValue;
+            return true;
+        }
+
+        if (jsonValue.TryGetValue<double>(out var doubleValue)
+            && doubleValue >= int.MinValue
+            && doubleValue <= int.MaxValue
+            && double.IsFinite(doubleValue)
+            && Math.Truncate(doubleValue) == doubleValue)
+        {
+            result = (int)doubleValue;
+            return true;
+        }
+
+        if (jsonValue.TryGetValue<string>(out var stringValue)
+            && int.TryParse(stringValue, out var parsedValue))
+        {
+            result = parsedValue;
+            return true;
+        }
+
+        return false;
     }
 
     private static void ApplyMapping(JsonNode workflow, WorkflowInputMapping mapping, JsonNode? value)
