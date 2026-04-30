@@ -1,0 +1,13 @@
+**/.git
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/.idea
+**/.DS_Store
+**/node_modules
+.gitignore
+README.md
+testing.py
+simple.json
+z-image.json

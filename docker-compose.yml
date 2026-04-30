@@ -1,0 +1,15 @@
+services:
+  comfybridge-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: comfybridge-api
+    ports:
+      - "${COMFYBRIDGE_API_PORT:-5180}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ComfyUi__BaseUrl: ${COMFYUI_BASE_URL:-http://host.docker.internal:8189}
+      WorkflowAi__Endpoint: ${WORKFLOW_AI_ENDPOINT:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

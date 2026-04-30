@@ -46,24 +46,32 @@ public sealed class ComfyClient(
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(timeout);
 
-        while (!timeoutCts.Token.IsCancellationRequested)
+        try
         {
-            using var response = await httpClient.GetAsync($"history/{Uri.EscapeDataString(externalExecutionId)}", timeoutCts.Token);
-            if (response.IsSuccessStatusCode)
+            while (!timeoutCts.Token.IsCancellationRequested)
             {
-                var history = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: timeoutCts.Token);
-                var completed = TryBuildResultFromHistory(externalExecutionId, history);
-                if (completed is not null)
+                using var response = await httpClient.GetAsync($"history/{Uri.EscapeDataString(externalExecutionId)}", timeoutCts.Token);
+                if (response.IsSuccessStatusCode)
                 {
-                    return completed;
+                    var history = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: timeoutCts.Token);
+                    var completed = TryBuildResultFromHistory(externalExecutionId, history);
+                    if (completed is not null)
+                    {
+                        return completed;
+                    }
                 }
-            }
 
-            await Task.Delay(_options.PollIntervalMs, timeoutCts.Token);
+                await Task.Delay(_options.PollIntervalMs, timeoutCts.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+        {
+            logger.LogWarning("ComfyUI timed out waiting for prompt {PromptId} after {TimeoutSeconds}s", externalExecutionId, timeout.TotalSeconds);
+            throw new TimeoutException($"Timed out waiting for ComfyUI prompt '{externalExecutionId}' after {timeout.TotalSeconds:0} seconds.");
         }
 
         logger.LogWarning("ComfyUI timed out waiting for prompt {PromptId}", externalExecutionId);
-        throw new TimeoutException($"Timed out waiting for ComfyUI prompt '{externalExecutionId}'.");
+        throw new TimeoutException($"Timed out waiting for ComfyUI prompt '{externalExecutionId}' after {timeout.TotalSeconds:0} seconds.");
     }
 
     public async Task<DownloadedAsset> DownloadAssetAsync(string assetUrl, CancellationToken cancellationToken)

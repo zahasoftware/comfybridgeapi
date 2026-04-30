@@ -67,3 +67,8 @@ pip-wheel-metadata/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local environment overrides for Docker Compose
+.env
+.env.*
+!.env.example

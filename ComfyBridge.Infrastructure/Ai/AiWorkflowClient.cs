@@ -180,7 +180,10 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
             sb.AppendLine("}");
             sb.AppendLine();
             sb.AppendLine("## FIELD DETECTION RULES");
-            sb.AppendLine("Map EVERY literal field the user can change. A field is mappable only when its value in 'inputs' is a string, number, or bool — NOT an array like [\"3\", 0].");
+            sb.AppendLine("Map EVERY user-editable field the user can change.");
+            sb.AppendLine("A field is mappable when its effective value resolves to a literal string, number, or bool.");
+            sb.AppendLine("That literal may appear directly in the target node, OR indirectly through a referenced Primitive node such as PrimitiveInt/PrimitiveFloat/PrimitiveBoolean.");
+            sb.AppendLine("If a node input is an array like [\"128:125\", 0], inspect the referenced node. If that referenced node exposes a literal 'value', map the user-facing field to that Primitive node's 'value' field.");
             sb.AppendLine();
             sb.AppendLine("### CLIPTextEncode  (field: 'text')");
             sb.AppendLine("  First occurrence  → inputName: \"prompt\",         type: \"string\",  example: \"a cinematic landscape, photorealistic\"");
@@ -191,14 +194,26 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
             sb.AppendLine("  'steps'        → inputName: \"steps\",     type: \"int\",    example: 20");
             sb.AppendLine("  'cfg'          → inputName: \"cfg\",       type: \"float\",  example: 7.0");
             sb.AppendLine("  'seed'         → inputName: \"seed\",      type: \"int\",    example: 42");
+            sb.AppendLine("  'noise_seed'   → inputName: \"seed\",      type: \"int\",    example: 42");
             sb.AppendLine("  'sampler_name' → inputName: \"sampler\",   type: \"string\", example: \"euler\"");
             sb.AppendLine("  'scheduler'    → inputName: \"scheduler\", type: \"string\", example: \"normal\"");
             sb.AppendLine("  'denoise'      → inputName: \"denoise\",   type: \"float\",  example: 1.0  (only if its value is a literal, not an array)");
             sb.AppendLine();
-            sb.AppendLine("### EmptyLatentImage / EmptySD3LatentImage");
+            sb.AppendLine("### EmptyLatentImage / EmptySD3LatentImage / EmptyHunyuanLatentVideo / EmptyHunyuanLatentImage / EmptyVideoLatent");
             sb.AppendLine("  'width'      → inputName: \"width\",     type: \"int\", example: 512");
             sb.AppendLine("  'height'     → inputName: \"height\",    type: \"int\", example: 512");
             sb.AppendLine("  'batch_size' → inputName: \"batchSize\", type: \"int\", example: 1  (only if present)");
+            sb.AppendLine("  'length'     → inputName: \"frameCount\", type: \"int\", example: 81  (only if the effective value resolves to a literal; otherwise skip)");
+            sb.AppendLine();
+            sb.AppendLine("### CreateVideo / SaveVideo / Video workflows");
+            sb.AppendLine("  'fps'            → inputName: \"fps\",            type: \"float\",  example: 16");
+            sb.AppendLine("  'filename_prefix'→ inputName: \"filenamePrefix\", type: \"string\", example: \"video/ComfyUI\"");
+            sb.AppendLine("  If fps is connected through a Primitive node, map to that Primitive node's literal 'value'.");
+            sb.AppendLine();
+            sb.AppendLine("### PrimitiveInt / PrimitiveFloat / PrimitiveBoolean");
+            sb.AppendLine("  Primitive nodes are often the real editable control in text-to-video workflows.");
+            sb.AppendLine("  If a computation or switch node references Primitive values for steps, cfg, fps, duration, frame count, seed, width, or height, map the user-facing input to the Primitive node's 'value' field.");
+            sb.AppendLine("  Use semantic names such as \"fps\", \"duration\", \"steps\", \"cfg\", \"seed\", \"width\", \"height\" when the title or downstream usage makes the meaning clear.");
             sb.AppendLine();
             sb.AppendLine("### CheckpointLoaderSimple / CheckpointLoader");
             sb.AppendLine("  'ckpt_name' → inputName: \"model\", type: \"string\", example: \"v1-5-pruned-emaonly.ckpt\"");
@@ -220,10 +235,12 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
             sb.AppendLine("  'clip_name' → inputName: \"clipModel\", type: \"string\", example: \"clip.safetensors\"");
             sb.AppendLine();
             sb.AppendLine("## STRICT RULES");
-            sb.AppendLine("- SKIP any field whose workflow value is an array (internal node reference).");
+            sb.AppendLine("- SKIP raw array references themselves, but DO inspect them to find referenced Primitive literal values.");
             sb.AppendLine("- ONLY include fields actually present in this specific workflow.");
-            sb.AppendLine("- When prompt, negativePrompt, steps, cfg, seed, width, height, sampler, scheduler, batch_size, or model exist, you MUST include them.");
+            sb.AppendLine("- When prompt, negativePrompt, steps, cfg, seed, width, height, sampler, scheduler, batch_size, fps, or model exist, you MUST include them.");
+            sb.AppendLine("- In text-to-video workflows, prefer the actual editable controls, not only terminal save nodes.");
             sb.AppendLine("- Do NOT return only SaveImage.filename_prefix when richer generation controls exist in the workflow.");
+            sb.AppendLine("- Do NOT return only SaveVideo.filename_prefix when richer video generation controls exist in the workflow.");
             sb.AppendLine("- SaveImage.filename_prefix is secondary metadata, not the primary mapping result for txt2img workflows.");
             sb.AppendLine("- exampleRequest.template must be exactly \"<name>:1.0\".");
             sb.AppendLine("- exampleRequest.inputs must include EVERY declared input with a value matching its type.");
@@ -395,13 +412,17 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
                 AddLiteralField("steps", "int", node.Name, nodeInputs, "steps", inputs, mapping);
                 AddLiteralField("cfg", "float", node.Name, nodeInputs, "cfg", inputs, mapping);
                 AddLiteralField("seed", "int", node.Name, nodeInputs, "seed", inputs, mapping);
+                AddLiteralField("seed", "int", node.Name, nodeInputs, "noise_seed", inputs, mapping);
                 AddLiteralField("sampler", "string", node.Name, nodeInputs, "sampler_name", inputs, mapping);
                 AddLiteralField("scheduler", "string", node.Name, nodeInputs, "scheduler", inputs, mapping);
                 AddLiteralField("denoise", "float", node.Name, nodeInputs, "denoise", inputs, mapping);
             }
 
             if (string.Equals(classType, "EmptyLatentImage", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(classType, "EmptySD3LatentImage", StringComparison.OrdinalIgnoreCase))
+                string.Equals(classType, "EmptySD3LatentImage", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(classType, "EmptyHunyuanLatentVideo", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(classType, "EmptyHunyuanLatentImage", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(classType, "EmptyVideoLatent", StringComparison.OrdinalIgnoreCase))
             {
                 AddLiteralField("width", "int", node.Name, nodeInputs, "width", inputs, mapping);
                 AddLiteralField("height", "int", node.Name, nodeInputs, "height", inputs, mapping);
@@ -441,6 +462,22 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
             if (string.Equals(classType, "SaveImage", StringComparison.OrdinalIgnoreCase))
             {
                 AddLiteralField("filenamePrefix", "string", node.Name, nodeInputs, "filename_prefix", inputs, mapping);
+            }
+
+            if (string.Equals(classType, "SaveVideo", StringComparison.OrdinalIgnoreCase))
+            {
+                AddLiteralField("filenamePrefix", "string", node.Name, nodeInputs, "filename_prefix", inputs, mapping);
+            }
+
+            if (string.Equals(classType, "PrimitiveInt", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(classType, "PrimitiveFloat", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(classType, "PrimitiveBoolean", StringComparison.OrdinalIgnoreCase))
+            {
+                var title = GetNodeTitle(node.Value);
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    AddPrimitiveFieldFromTitle(title, node.Name, nodeInputs, inputs, mapping);
+                }
             }
         }
 
@@ -753,6 +790,73 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
         }
 
         return value.ValueKind is JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False;
+    }
+
+    private static string? GetNodeTitle(JsonElement node)
+    {
+        if (node.TryGetProperty("_meta", out var meta) &&
+            meta.ValueKind == JsonValueKind.Object &&
+            meta.TryGetProperty("title", out var title) &&
+            title.ValueKind == JsonValueKind.String)
+        {
+            return title.GetString();
+        }
+
+        return null;
+    }
+
+    private static void AddPrimitiveFieldFromTitle(
+        string title,
+        string nodeId,
+        JsonElement nodeInputs,
+        IDictionary<string, string> inputs,
+        IDictionary<string, WorkflowInputMapping> mapping)
+    {
+        if (!HasLiteralField(nodeInputs, "value"))
+        {
+            return;
+        }
+
+        var normalizedTitle = title.Trim().ToLowerInvariant();
+        if (normalizedTitle.Contains("fps", StringComparison.Ordinal))
+        {
+            AddField("fps", "float", nodeId, "value", inputs, mapping);
+        }
+
+        if (normalizedTitle.Contains("duration", StringComparison.Ordinal))
+        {
+            AddField("duration", "float", nodeId, "value", inputs, mapping);
+        }
+
+        if (normalizedTitle.Contains("frame", StringComparison.Ordinal) || normalizedTitle.Contains("length", StringComparison.Ordinal))
+        {
+            AddField("frameCount", "int", nodeId, "value", inputs, mapping);
+        }
+
+        if (normalizedTitle.Contains("steps", StringComparison.Ordinal))
+        {
+            AddField("steps", "int", nodeId, "value", inputs, mapping);
+        }
+
+        if (normalizedTitle.Contains("cfg", StringComparison.Ordinal))
+        {
+            AddField("cfg", "float", nodeId, "value", inputs, mapping);
+        }
+
+        if (normalizedTitle.Contains("seed", StringComparison.Ordinal))
+        {
+            AddField("seed", "int", nodeId, "value", inputs, mapping);
+        }
+
+        if (normalizedTitle.Contains("width", StringComparison.Ordinal))
+        {
+            AddField("width", "int", nodeId, "value", inputs, mapping);
+        }
+
+        if (normalizedTitle.Contains("height", StringComparison.Ordinal))
+        {
+            AddField("height", "int", nodeId, "value", inputs, mapping);
+        }
     }
 
     private static void AddLiteralField(

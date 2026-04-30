@@ -49,7 +49,7 @@ Current defaults:
   "ComfyUi": {
     "BaseUrl": "http://127.0.0.1:8189",
     "PollIntervalMs": 1000,
-    "JobTimeoutSeconds": 120
+    "JobTimeoutSeconds": 600
   },
   "TemplateStorage": {
     "TemplatesPath": "Templates"
@@ -85,6 +85,89 @@ dotnet run --project .\ComfyBridge.Api\ComfyBridge.Api.csproj
 Default URLs (from launch settings):
 - HTTP: `http://localhost:5176`
 - HTTPS: `https://localhost:7051`
+
+Port defaults by execution mode:
+- F5 / `dotnet run`: `5176` (HTTP), `7051` (HTTPS)
+- Docker Compose: `5180` (HTTP host port mapped to container `8080`)
+
+## Run With Docker
+
+The repository includes:
+- `Dockerfile`
+- `docker-compose.yml`
+- `.env.example`
+
+By default, Docker mode maps API port `5180 -> 8080` and uses host endpoints so the container can call services running on your host machine:
+- `ComfyUi__BaseUrl = http://host.docker.internal:8189`
+- `WorkflowAi__Endpoint = http://host.docker.internal:11434`
+
+Start with Docker Compose:
+
+```powershell
+# Optional: create local overrides file from sample (first time only)
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+
+docker compose up --build
+```
+
+API URL:
+- `http://localhost:5180`
+
+To avoid host port conflicts, override Docker published port:
+
+```powershell
+# Option A: one-off for current shell
+$env:COMFYBRIDGE_API_PORT = "5190"
+docker compose up --build
+```
+
+```powershell
+# Option B: set COMFYBRIDGE_API_PORT in .env for persistent local default
+docker compose up --build
+```
+
+Override endpoints if ComfyUI / AI are hosted elsewhere:
+
+```powershell
+# Option A: one-off overrides for current shell
+$env:COMFYUI_BASE_URL = "http://<your-comfy-host>:8189"
+$env:WORKFLOW_AI_ENDPOINT = "http://<your-ai-host>:11434"
+$env:COMFYBRIDGE_API_PORT = "5190"
+docker compose up --build
+```
+
+```powershell
+# Option B: set COMFYUI_BASE_URL / WORKFLOW_AI_ENDPOINT in .env
+docker compose up --build
+```
+
+Build/run image manually:
+
+```powershell
+docker build -t comfybridge-api .
+docker run --rm -p 5180:8080 `
+  -e ComfyUi__BaseUrl=http://host.docker.internal:8189 `
+  -e WorkflowAi__Endpoint=http://host.docker.internal:11434 `
+  comfybridge-api
+```
+
+If `5180` is already in use, change the first number in `-p <hostPort>:8080`.
+
+## Run With F5 (VS Code / Visual Studio)
+
+Use the existing launch profiles in `ComfyBridge.Api/Properties/launchSettings.json`:
+- `http`
+- `https`
+
+F5 runs with `ASPNETCORE_ENVIRONMENT=Development` and keeps local defaults from appsettings unless you override with environment variables.
+
+## Run Directly (CLI)
+
+This remains unchanged and works without Docker:
+
+```powershell
+dotnet run --project .\ComfyBridge.Api\ComfyBridge.Api.csproj
+```
 
 ## How To Use ComfyBridge.Api
 
@@ -149,8 +232,12 @@ Example:
 ### 6) Use the browser UI (optional)
 
 Open:
-- `http://localhost:5176/workflows` for workflow management
-- `http://localhost:5176/api-explorer` to test generated dynamic endpoints from a UI
+- `http://localhost:<api-port>/workflows` for workflow management
+- `http://localhost:<api-port>/api-explorer` to test generated dynamic endpoints from a UI
+
+Where `<api-port>` is:
+- `5176` for F5 / `dotnet run`
+- `5180` for Docker default (or your `COMFYBRIDGE_API_PORT` override)
 
 ## Template Storage And Formats
 

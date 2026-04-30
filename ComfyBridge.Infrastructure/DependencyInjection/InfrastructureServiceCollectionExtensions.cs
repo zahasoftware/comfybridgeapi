@@ -36,6 +36,8 @@ public static class InfrastructureServiceCollectionExtensions
         {
             var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ComfyUiOptions>>().Value;
             httpClient.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+            // The generation timeout is controlled explicitly in ComfyClient via JobTimeoutSeconds.
+            httpClient.Timeout = Timeout.InfiniteTimeSpan;
         });
 
         services.AddHttpClient<IAiClient, AiWorkflowClient>();

@@ -192,7 +192,7 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
             }
 
             <!-- ── Test Panel ───────────────────────────────── -->
-            <div class="test-panel" id="panel-@id" data-endpoint="@endpointPath" data-base-url="@Model.BaseUrl">
+            <div class="test-panel" id="panel-@id" data-endpoint="@endpointPath" data-base-url="@Model.BaseUrl" data-job-timeout-seconds="@Model.JobTimeoutSeconds">
 
                 <h3>Test this endpoint</h3>
 
@@ -385,14 +385,20 @@ async function submitRun(id) {
 
     const jobId = data.jobId;
     setResult(id, 'pending', `⏳ Job accepted — <strong>${esc(jobId)}</strong>. Polling for result…`);
-    await pollJob(id, jobId);
+    await pollJob(id, jobId, panel);
 }
 
 /* ── poll job status ───────────────────────────── */
-async function pollJob(id, jobId) {
-    const max = 90;   // 90 × 2 s = 3 min max
+async function pollJob(id, jobId, panel) {
+    const pollEveryMs = 2000;
+    const configuredTimeoutSec = Number.parseInt(panel?.dataset.jobTimeoutSeconds || '120', 10);
+    const uiTimeoutSec = Number.isFinite(configuredTimeoutSec)
+        ? Math.max(180, configuredTimeoutSec + 30)
+        : 180;
+    const max = Math.ceil((uiTimeoutSec * 1000) / pollEveryMs);
+
     for (let i = 0; i < max; i++) {
-        await sleep(2000);
+        await sleep(pollEveryMs);
         try {
             const res  = await fetch('/api/v1/jobs/' + encodeURIComponent(jobId));
             if (!res.ok) continue;
@@ -410,7 +416,7 @@ async function pollJob(id, jobId) {
             setResult(id, 'pending', `⏳ Status: <strong>${esc(job.status)}</strong>${dots} (${i+1}/${max})`);
         } catch { /* ignore transient fetch errors */ }
     }
-    setResult(id, 'error', `⏰ Timed out. Check status manually: <a href="/api/v1/jobs/${encodeURIComponent(jobId)}" target="_blank">View job</a>`);
+    setResult(id, 'error', `⏰ Polling timed out after ~${uiTimeoutSec}s. Check status manually: <a href="/api/v1/jobs/${encodeURIComponent(jobId)}" target="_blank">View job</a>`);
 }
 
 /* ── render completed job ──────────────────────── */

@@ -8,5 +8,5 @@ public sealed class ComfyUiOptions
 
     public int PollIntervalMs { get; init; } = 1000;
 
-    public int JobTimeoutSeconds { get; init; } = 120;
+    public int JobTimeoutSeconds { get; init; } = 600;
 }

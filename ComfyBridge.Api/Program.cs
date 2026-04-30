@@ -21,6 +21,11 @@ builder.Services.AddHostedService<GenerationJobWorker>();
 
 var app = builder.Build();
 
+var runningInContainer = string.Equals(
+    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -28,7 +33,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ApiExceptionMiddleware>();
-app.UseHttpsRedirection();
+if (!runningInContainer)
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 app.MapControllers();
 app.MapRazorPages();

@@ -2,15 +2,21 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using ComfyBridge.Application.Contracts;
 using ComfyBridge.Domain.Models;
+using ComfyBridge.Infrastructure.Options;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 
 namespace ComfyBridge.Api.Pages;
 
-public sealed class ApiExplorerModel(ITemplateService templateService) : PageModel
+public sealed class ApiExplorerModel(
+    ITemplateService templateService,
+    IOptions<ComfyUiOptions> comfyUiOptions) : PageModel
 {
     public IReadOnlyCollection<WorkflowTemplate> Templates { get; private set; } = [];
 
     public string BaseUrl { get; private set; } = string.Empty;
+
+    public int JobTimeoutSeconds { get; private set; } = Math.Max(60, comfyUiOptions.Value.JobTimeoutSeconds);
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
