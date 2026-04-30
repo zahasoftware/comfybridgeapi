@@ -61,6 +61,18 @@ td code { background: #f1f5f9; border-radius: 5px; padding: .1rem .3rem;
 .t-float,.t-double,.t-number { background: #e0f2fe; color: #0369a1; }
 .t-bool,.t-boolean  { background: #fce7f3; color: #9d174d; }
 
+details.map-fields { margin-bottom: .7rem; }
+details.map-fields summary {
+    cursor: pointer;
+    user-select: none;
+    font-size: .86rem;
+    font-weight: 700;
+    color: #0f172a;
+    padding: .25rem 0;
+}
+details.map-fields summary span { color: #64748b; font-weight: 600; }
+details.map-fields table { margin-top: .35rem; margin-bottom: 0; }
+
 /* ── buttons ─────────────────────────────────────── */
 .btn { border: 0; border-radius: 8px; padding: .46rem .85rem; font-weight: 600;
        cursor: pointer; font-size: .88rem; line-height: 1.35;
@@ -168,27 +180,30 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
             }
             else
             {
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Field</th>
-                            <th>Type</th>
-                            <th>Maps To (ComfyUI node → field)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var input in template.Inputs)
-                        {
-                            var desc = ComfyBridge.Api.Pages.ApiExplorerModel.GetFieldDescription(template, input.Key);
-                            var tClass = input.Value.ToLower();
+                <details class="map-fields">
+                    <summary>Mapped fields <span>(@template.Inputs.Count)</span></summary>
+                    <table>
+                        <thead>
                             <tr>
-                                <td><code>@input.Key</code></td>
-                                <td><span class="type-pill t-@tClass">@input.Value</span></td>
-                                <td style="color:#64748b;">@(string.IsNullOrEmpty(desc) ? "—" : desc)</td>
+                                <th>Field</th>
+                                <th>Type</th>
+                                <th>Maps To (ComfyUI node → field)</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @foreach (var input in template.Inputs)
+                            {
+                                var desc = ComfyBridge.Api.Pages.ApiExplorerModel.GetFieldDescription(template, input.Key);
+                                var tClass = input.Value.ToLower();
+                                <tr>
+                                    <td><code>@input.Key</code></td>
+                                    <td><span class="type-pill t-@tClass">@input.Value</span></td>
+                                    <td style="color:#64748b;">@(string.IsNullOrEmpty(desc) ? "—" : desc)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </details>
             }
 
             <!-- ── Test Panel ───────────────────────────────── -->
