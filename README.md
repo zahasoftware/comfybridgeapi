@@ -5,6 +5,7 @@ ComfyBridge API is a .NET 9 service that sits in front of ComfyUI and exposes st
 It provides:
 - Job-based image generation (`202 Accepted` + polling)
 - Template discovery and dynamic run endpoints
+- Image upload bridge endpoint for image-to-video/image-to-image workflows
 - Workflow analyze/save APIs
 - Built-in Razor Pages UI for workflow import/testing
 
@@ -13,6 +14,7 @@ It provides:
 ### API endpoints
 - `GET /api/v1/jobs/{jobId}`
 - `GET /api/v1/templates`
+- `POST /api/v1/uploads/image` (multipart image upload bridge to ComfyUI)
 - `POST /api/v1/{category}/{name}` (dynamic run endpoint, latest version by name)
 - `GET /api/v1/workflows/templates`
 - `POST /api/v1/workflows/analyze`
@@ -49,7 +51,9 @@ Current defaults:
   "ComfyUi": {
     "BaseUrl": "http://127.0.0.1:8189",
     "PollIntervalMs": 1000,
-    "JobTimeoutSeconds": 600
+    "JobTimeoutSeconds": 600,
+    "UploadMaxFileSizeBytes": 10485760,
+    "AllowedUploadExtensions": [".png", ".jpg", ".jpeg", ".webp", ".bmp"]
   },
   "TemplateStorage": {
     "TemplatesPath": "Templates"
@@ -69,8 +73,81 @@ Current defaults:
 
 Update at least:
 1. `ComfyUi.BaseUrl` to match your ComfyUI instance.
-2. `WorkflowAi` values if using workflow analysis features.
-3. `TemplateStorage.TemplatesPath` only if you want a different template folder.
+2. `ComfyUi.UploadMaxFileSizeBytes` and `ComfyUi.AllowedUploadExtensions` for client upload rules.
+3. `WorkflowAi` values if using workflow analysis features.
+4. `TemplateStorage.TemplatesPath` only if you want a different template folder.
+
+## Client Implementation: Upload Image Workflows
+
+For workflows where template inputs include `image` / `file` (for example `LoadImage.image`), clients should use a two-step flow.
+
+### Step 1) Upload image to ComfyBridge
+
+`ComfyBridge` forwards the image to ComfyUI and returns the stored filename that must be used in the run payload.
+
+```http
+POST /api/v1/uploads/image
+Content-Type: multipart/form-data
+```
+
+Form fields:
+1. `file` (required): image binary
+2. `type` (optional): defaults to `input`
+3. `subfolder` (optional)
+4. `overwrite` (optional): defaults to `true`
+
+Response example:
+
+```json
+{
+  "comfyFileName": "z-image-turbo_01372_.png",
+  "subfolder": "",
+  "type": "input",
+  "viewUrl": "http://127.0.0.1:8189/view?filename=z-image-turbo_01372_.png&type=input"
+}
+```
+
+### Step 2) Execute dynamic workflow endpoint
+
+Use the returned `comfyFileName` in the mapped input field (usually `image`).
+
+```http
+POST /api/v1/image2video/<template-name>
+Content-Type: application/json
+
+{
+  "image": "z-image-turbo_01372_.png",
+  "prompt": "cinematic energy build-up",
+  "negativePrompt": "blurry, low quality",
+  "width": 720,
+  "height": 720,
+  "frameCount": 81,
+  "fps": 16
+}
+```
+
+### Step 3) Poll job and download assets
+
+```http
+GET /api/v1/jobs/{jobId}
+```
+
+`assetUrls` may contain image and video/gif assets depending on workflow output nodes.
+Use:
+
+```http
+GET /api/v1/jobs/{jobId}/outputs/{assetIndex}
+```
+
+to download each output through the bridge.
+
+### Client-side best practices
+
+1. Validate file extension and size before upload, aligned with server config.
+2. Cache `comfyFileName` only for short-lived workflow execution sessions.
+3. Always poll job status instead of assuming immediate completion.
+4. Treat run endpoint inputs as strict: unknown or missing fields return validation errors.
+5. If your client already has an existing Comfy filename, you can skip upload and call run directly.
 
 ## Run The App
 
@@ -199,6 +276,8 @@ Content-Type: application/json
 
 Expected response: `202 Accepted` with `jobId` and `status`.
 
+For image-to-video templates that require file upload first, follow the two-step flow in "Client Implementation: Upload Image Workflows".
+
 ### 4) Poll job status
 
 ```http
@@ -314,6 +393,21 @@ Then:
 
 ```powershell
 curl.exe "http://localhost:5176/api/v1/jobs/<jobId>"
+```
+
+Upload + image2video quick example:
+
+```powershell
+# 1) Upload image
+curl.exe -X POST "http://localhost:5176/api/v1/uploads/image" `
+  -F "file=@C:/path/to/your-start-frame.png" `
+  -F "type=input" `
+  -F "overwrite=true"
+
+# 2) Run template using comfyFileName from upload response
+curl.exe -X POST "http://localhost:5176/api/v1/image2video/03-video-wan2-2-14b-i2v-subgraphed" `
+  -H "Content-Type: application/json" `
+  -d "{\"image\":\"z-image-turbo_01372_.png\",\"prompt\":\"energy build-up\",\"negativePrompt\":\"blurry\",\"width\":720,\"height\":720,\"frameCount\":81,\"fps\":16}"
 ```
 
 ## Notes

@@ -197,6 +197,7 @@ public sealed class ApiExplorerModel(
                 "int" or "integer" => JsonValue.Create(1),
                 "float" or "double" or "number" => JsonValue.Create(1.0),
                 "bool" or "boolean" => JsonValue.Create(false),
+                "image" or "file" => JsonValue.Create($"uploaded-{key}.png"),
                 _ => JsonValue.Create($"your-{key}-here")
             };
         }

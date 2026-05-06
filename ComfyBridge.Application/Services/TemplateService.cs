@@ -145,6 +145,7 @@ public sealed class TemplateService(
         return expectedType switch
         {
             "string" => value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out _),
+            "image" or "file" => value is JsonValue fileValue && fileValue.TryGetValue<string>(out _),
             "int" or "integer" => value is JsonValue integerValue && integerValue.TryGetValue<int>(out _),
             "float" or "double" or "number" => value is JsonValue numberValue &&
                 (numberValue.TryGetValue<double>(out _) || numberValue.TryGetValue<decimal>(out _)),

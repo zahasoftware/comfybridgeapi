@@ -3,6 +3,11 @@
 @{
     ViewData["Title"] = "API Explorer";
     int cardIdx = 0;
+    var categories = Model.Templates
+        .Select(t => string.IsNullOrWhiteSpace(t.Category) ? "general" : t.Category)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(c => c)
+        .ToList();
 }
 
 <style>
@@ -12,6 +17,24 @@
 /* ── page ───────────────────────────────────────── */
 .page { padding: 1.5rem; font-family: "Segoe UI", sans-serif; color: #0f172a; }
 .container { max-width: 1100px; margin: 0 auto; }
+
+/* ── filters ────────────────────────────────────── */
+.filters { display: flex; align-items: center; gap: .55rem; margin-bottom: .9rem; }
+.filters label { font-size: .84rem; color: #475569; font-weight: 700; }
+.filter-select {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: .42rem .55rem;
+    font-size: .9rem;
+    color: #0f172a;
+    background: #fff;
+    min-width: 220px;
+}
+.filter-select:focus {
+    outline: none;
+    border-color: #0f766e;
+    box-shadow: 0 0 0 2px rgba(15,118,110,.15);
+}
 
 /* ── hero ───────────────────────────────────────── */
 .hero { background: linear-gradient(135deg,#f0fdfa 0%,#e0f2fe 100%);
@@ -60,6 +83,7 @@ td code { background: #f1f5f9; border-radius: 5px; padding: .1rem .3rem;
 .t-int, .t-integer  { background: #dcfce7; color: #166534; }
 .t-float,.t-double,.t-number { background: #e0f2fe; color: #0369a1; }
 .t-bool,.t-boolean  { background: #fce7f3; color: #9d174d; }
+.t-image,.t-file    { background: #ede9fe; color: #5b21b6; }
 
 details.map-fields { margin-bottom: .7rem; }
 details.map-fields summary {
@@ -144,6 +168,20 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
         </div>
     }
 
+    @if (Model.Templates.Any())
+    {
+        <div class="filters">
+            <label for="categoryFilter">Category</label>
+            <select id="categoryFilter" class="filter-select" onchange="onCategoryFilterChange(this)">
+                <option value="" selected="selected">All categories</option>
+                @foreach (var category in categories)
+                {
+                    <option value="@category.ToLowerInvariant()">@category</option>
+                }
+            </select>
+        </div>
+    }
+
     @foreach (var template in Model.Templates.OrderBy(t => t.Category).ThenBy(t => t.Name))
     {
         var id = cardIdx++;
@@ -151,7 +189,7 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
         var catDisplay = string.IsNullOrWhiteSpace(template.Category) ? "general" : template.Category;
         var defaults = ComfyBridge.Api.Pages.ApiExplorerModel.GetWorkflowDefaultValues(template);
 
-        <div class="card">
+        <div class="card template-card" data-category="@catDisplay.ToLowerInvariant()">
 
             <!-- Header -->
             <div class="card-head">
@@ -219,6 +257,7 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
                     var isBool = type == "bool" || type == "boolean";
                     var isInt = type == "int" || type == "integer";
                     var isFloat = type is "float" or "double" or "number";
+                    var isFile = type is "image" or "file";
                     var dflt = defaults.GetValueOrDefault(input.Key, "");
 
                     <div class="field-wrap">
@@ -260,7 +299,18 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
                                    value="@dflt"
                                    placeholder="e.g. 7.5" />
                         }
-                        else if (isTextLong)
+                           else if (isFile)
+                           {
+                            <input type="file" class="form-ctrl" accept="image/*"
+                                data-key="@input.Key" data-type="@input.Value"
+                                data-upload-type="input" />
+                            <div class="field-desc" style="margin-top:.35rem;">Or use an existing Comfy filename:</div>
+                            <input type="text" class="form-ctrl"
+                                data-file-fallback-for="@input.Key"
+                                value="@dflt"
+                                placeholder="e.g. start-frame.png" />
+                           }
+                           else if (isTextLong)
                         {
                             <textarea class="form-ctrl"
                                       data-key="@input.Key" data-type="@input.Value"
@@ -315,8 +365,26 @@ function setResult(id, type, html) {
 function buildCodeExample(id) {
     const panel   = document.getElementById('panel-' + id);
     const url     = panel.dataset.baseUrl + panel.dataset.endpoint;
+        const hasFileInput = panel.querySelector('[data-type="image"], [data-type="file"]') !== null;
+
+        if (hasFileInput) {
+                return `# Step 1: upload image to ComfyBridge (bridge -> ComfyUI)
+curl -X POST "${panel.dataset.baseUrl}/api/v1/uploads/image" \\
+    -F "file=@@/absolute/path/to/start-frame.png" \\
+    -F "type=input" \\
+    -F "overwrite=true"
+
+# Response contains comfyFileName. Use it in Step 2.
+
+# Step 2: run workflow endpoint with uploaded file name
+curl -X POST "${url}" \\
+    -H "Content-Type: application/json" \\
+    -d "{\"image\":\"<comfyFileName-from-step-1>\"}"`;
+        }
+
     const payload = {};
     panel.querySelectorAll('[data-key]').forEach(el => {
+                if (el.type === 'file') return;
         payload[el.dataset.key] = castValue(el.dataset.type, el.value);
     });
     const json = JSON.stringify(payload, null, 2);
@@ -336,6 +404,15 @@ function refreshCodeIfOpen(id) {
     if (details && details.open) {
         document.getElementById('curl-' + id).textContent = buildCodeExample(id);
     }
+}
+
+/* ── category filter ───────────────────────────── */
+function onCategoryFilterChange(select) {
+    const selected = (select.value || '').toLowerCase();
+    document.querySelectorAll('.template-card').forEach(card => {
+        const cardCategory = (card.dataset.category || '').toLowerCase();
+        card.style.display = !selected || cardCategory === selected ? 'block' : 'none';
+    });
 }
 
 /* ── toggle test panel ─────────────────────────── */
@@ -366,7 +443,38 @@ function castValue(type, raw) {
     if (t === 'int' || t === 'integer')   return parseInt(raw, 10);
     if (t === 'float' || t === 'double' || t === 'number') return parseFloat(raw);
     if (t === 'bool' || t === 'boolean')  return String(raw).toLowerCase() === 'true';
+    if (t === 'image' || t === 'file')    return String(raw || '');
     return raw;
+}
+
+async function uploadImageFile(fileInput) {
+    const form = new FormData();
+    form.append('file', fileInput.files[0]);
+    form.append('type', fileInput.dataset.uploadType || 'input');
+    form.append('overwrite', 'true');
+
+    const res = await fetch('/api/v1/uploads/image', {
+        method: 'POST',
+        body: form
+    });
+
+    let data = null;
+    try {
+        data = await res.json();
+    } catch {
+        data = null;
+    }
+
+    if (!res.ok) {
+        const reason = data?.detail || data?.title || 'Image upload failed.';
+        throw new Error(reason);
+    }
+
+    if (!data?.comfyFileName) {
+        throw new Error('Upload succeeded but comfyFileName was not returned.');
+    }
+
+    return data.comfyFileName;
 }
 
 /* ── submit run ────────────────────────────────── */
@@ -375,11 +483,43 @@ async function submitRun(id) {
     const endpoint = panel.dataset.endpoint;
     const payload  = {};
 
+    const fallbackMap = new Map();
+    panel.querySelectorAll('[data-file-fallback-for]').forEach(el => {
+        fallbackMap.set(el.dataset.fileFallbackFor, (el.value || '').trim());
+    });
+
+    const fileInputs = [];
     panel.querySelectorAll('[data-key]').forEach(el => {
+        const type = (el.dataset.type || '').toLowerCase();
+        if (type === 'image' || type === 'file') {
+            fileInputs.push(el);
+            return;
+        }
         payload[el.dataset.key] = castValue(el.dataset.type, el.value);
     });
 
     setResult(id, 'pending', '⏳ Sending request to ComfyBridge…');
+
+    try {
+        for (const input of fileInputs) {
+            const key = input.dataset.key;
+            const hasFile = input.files && input.files.length > 0;
+            const fallbackValue = (fallbackMap.get(key) || '').trim();
+
+            if (hasFile) {
+                setResult(id, 'pending', `⏳ Uploading image for field <strong>${esc(key)}</strong>…`);
+                payload[key] = await uploadImageFile(input);
+            } else if (fallbackValue.length > 0) {
+                payload[key] = fallbackValue;
+            } else {
+                setResult(id, 'error', `❌ Field <strong>${esc(key)}</strong> requires an image file or an existing Comfy filename.`);
+                return;
+            }
+        }
+    } catch (err) {
+        setResult(id, 'error', '❌ Upload error: ' + esc(err.message || String(err)));
+        return;
+    }
 
     let data;
     try {
@@ -444,9 +584,15 @@ function renderDone(id, job) {
         for (let i = 0; i < job.assetUrls.length; i++) {
             const downloadUrl = `/api/v1/jobs/${encodedJobId}/outputs/${i}`;
             const s = esc(downloadUrl);
+                        const rawAssetUrl = String(job.assetUrls[i] || '').toLowerCase();
+                        const isVideo = rawAssetUrl.includes('filename=') && (rawAssetUrl.includes('.mp4') || rawAssetUrl.includes('.webm') || rawAssetUrl.includes('.mov') || rawAssetUrl.includes('.mkv') || rawAssetUrl.includes('.gif'));
             html += `<div class="img-card">
-                       <img src="${s}" alt="result"
-                            onerror="this.style.display='none'" />
+                                             ${isVideo
+                                                ? `<video controls preload="metadata" style="border-radius:8px;max-width:100%;border:1px solid #e2e8f0;">
+                                                         <source src="${s}" />
+                                                     </video>`
+                                                : `<img src="${s}" alt="result"
+                                                         onerror="this.style.display='none'" />`}
                        <a class="img-link" href="${s}" target="_blank">Download output #${i}</a>
                      </div>`;
         }

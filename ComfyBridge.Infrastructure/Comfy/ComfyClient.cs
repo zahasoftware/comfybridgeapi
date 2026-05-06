@@ -41,6 +41,71 @@ public sealed class ComfyClient(
         return promptId;
     }
 
+    public async Task<ComfyImageUploadResult> UploadImageAsync(
+        Stream fileStream,
+        ComfyImageUploadRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (fileStream is null)
+        {
+            throw new InputValidationException("Image stream is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FileName))
+        {
+            throw new InputValidationException("Image file name is required.");
+        }
+
+        using var form = new MultipartFormDataContent();
+        using var streamContent = new StreamContent(fileStream);
+        if (!string.IsNullOrWhiteSpace(request.ContentType))
+        {
+            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(request.ContentType);
+        }
+
+        form.Add(streamContent, "image", request.FileName);
+        form.Add(new StringContent(string.IsNullOrWhiteSpace(request.Type) ? "input" : request.Type), "type");
+        form.Add(new StringContent(request.Overwrite ? "true" : "false"), "overwrite");
+
+        if (!string.IsNullOrWhiteSpace(request.Subfolder))
+        {
+            form.Add(new StringContent(request.Subfolder), "subfolder");
+        }
+
+        using var response = await httpClient.PostAsync("upload/image", form, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new ExternalServiceException($"ComfyUI /upload/image failed: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
+        }
+
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken)
+            ?? throw new ExternalServiceException("ComfyUI image upload returned an empty response.");
+
+        var comfyFileName = json["name"]?.GetValue<string>()
+            ?? json["filename"]?.GetValue<string>();
+
+        if (string.IsNullOrWhiteSpace(comfyFileName))
+        {
+            throw new ExternalServiceException("ComfyUI image upload did not return the stored file name.");
+        }
+
+        var subfolder = json["subfolder"]?.GetValue<string>();
+        var type = json["type"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            type = string.IsNullOrWhiteSpace(request.Type) ? "input" : request.Type;
+        }
+
+        return new ComfyImageUploadResult
+        {
+            ComfyFileName = comfyFileName,
+            Subfolder = subfolder,
+            Type = type,
+            ViewUrl = BuildViewUrl(comfyFileName, subfolder, type)
+        };
+    }
+
     public async Task<GenerationResult> WaitForResultAsync(string externalExecutionId, TimeSpan timeout, CancellationToken cancellationToken)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -133,42 +198,34 @@ public sealed class ComfyClient(
                 continue;
             }
 
-            if (outputObject["images"] is not JsonArray images)
+            foreach (var key in new[] { "images", "videos", "gifs" })
             {
-                continue;
-            }
-
-            foreach (var imageNode in images)
-            {
-                if (imageNode is not JsonObject image)
+                if (outputObject[key] is not JsonArray assets)
                 {
                     continue;
                 }
 
-                var filename = image["filename"]?.GetValue<string>();
-                if (string.IsNullOrWhiteSpace(filename))
+                foreach (var assetNode in assets)
                 {
-                    continue;
+                    if (assetNode is not JsonObject asset)
+                    {
+                        continue;
+                    }
+
+                    var filename = asset["filename"]?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(filename))
+                    {
+                        continue;
+                    }
+
+                    var subfolder = asset["subfolder"]?.GetValue<string>();
+                    var type = asset["type"]?.GetValue<string>();
+                    var url = BuildViewUrl(filename, subfolder, type);
+                    if (!string.IsNullOrWhiteSpace(url))
+                    {
+                        urls.Add(url);
+                    }
                 }
-
-                var query = new List<string>
-                {
-                    $"filename={Uri.EscapeDataString(filename)}"
-                };
-
-                var subfolder = image["subfolder"]?.GetValue<string>();
-                if (!string.IsNullOrWhiteSpace(subfolder))
-                {
-                    query.Add($"subfolder={Uri.EscapeDataString(subfolder)}");
-                }
-
-                var type = image["type"]?.GetValue<string>();
-                if (!string.IsNullOrWhiteSpace(type))
-                {
-                    query.Add($"type={Uri.EscapeDataString(type)}");
-                }
-
-                urls.Add($"{httpClient.BaseAddress}view?{string.Join("&", query)}");
             }
         }
 
@@ -177,6 +234,31 @@ public sealed class ComfyClient(
             AssetUrls = urls,
             RawResult = promptNode?.DeepClone()
         };
+    }
+
+    private string? BuildViewUrl(string filename, string? subfolder, string? type)
+    {
+        if (string.IsNullOrWhiteSpace(filename))
+        {
+            return null;
+        }
+
+        var query = new List<string>
+        {
+            $"filename={Uri.EscapeDataString(filename)}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(subfolder))
+        {
+            query.Add($"subfolder={Uri.EscapeDataString(subfolder)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            query.Add($"type={Uri.EscapeDataString(type)}");
+        }
+
+        return $"{httpClient.BaseAddress}view?{string.Join("&", query)}";
     }
 
     private static string? ResolveFileNameFromAssetUrl(Uri assetUri)

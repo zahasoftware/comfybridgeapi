@@ -9,4 +9,8 @@ public sealed class ComfyUiOptions
     public int PollIntervalMs { get; init; } = 1000;
 
     public int JobTimeoutSeconds { get; init; } = 600;
+
+    public int UploadMaxFileSizeBytes { get; init; } = 10_485_760;
+
+    public string[] AllowedUploadExtensions { get; init; } = [".png", ".jpg", ".jpeg", ".webp", ".bmp"];
 }

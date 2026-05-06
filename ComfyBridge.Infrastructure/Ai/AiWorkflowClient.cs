@@ -223,7 +223,7 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
             sb.AppendLine("  'strength_model' → inputName: \"loraStrength\", type: \"float\",  example: 0.8");
             sb.AppendLine();
             sb.AppendLine("### LoadImage / LoadImageMask");
-            sb.AppendLine("  'image' → inputName: \"image\", type: \"string\", example: \"input.png\"");
+            sb.AppendLine("  'image' → inputName: \"image\", type: \"image\", example: \"input.png\"");
             sb.AppendLine();
             sb.AppendLine("### VAELoader");
             sb.AppendLine("  'vae_name' → inputName: \"vae\", type: \"string\", example: \"vae-ft-mse-840000-ema-pruned.ckpt\"");
@@ -433,7 +433,7 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
                  string.Equals(classType, "LoadImageMask", StringComparison.OrdinalIgnoreCase)) &&
                 HasLiteralField(nodeInputs, "image"))
             {
-                AddLiteralField("image", "string", node.Name, nodeInputs, "image", inputs, mapping);
+                AddLiteralField("image", "image", node.Name, nodeInputs, "image", inputs, mapping);
             }
 
             if (string.Equals(classType, "VAELoader", StringComparison.OrdinalIgnoreCase))
@@ -741,6 +741,7 @@ public sealed class AiWorkflowClient(HttpClient httpClient, IOptions<WorkflowAiO
         return expectedType switch
         {
             "string" => value is JsonValue stringValue && stringValue.TryGetValue<string>(out _),
+            "image" or "file" => value is JsonValue fileValue && fileValue.TryGetValue<string>(out _),
             "int" or "integer" => value is JsonValue intValue && intValue.TryGetValue<int>(out _),
             "float" or "double" or "number" => value is JsonValue numberValue &&
                 (numberValue.TryGetValue<double>(out _) || numberValue.TryGetValue<decimal>(out _)),

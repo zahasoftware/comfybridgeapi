@@ -1,7 +1,28 @@
 @ComfyBridge_Api_HostAddress = http://localhost:5176
+@UploadedComfyImage = z-image-turbo_01372_.png
 
 GET {{ComfyBridge_Api_HostAddress}}/api/v1/templates
 Accept: application/json
+
+###
+
+POST {{ComfyBridge_Api_HostAddress}}/api/v1/uploads/image
+Content-Type: multipart/form-data; boundary=----ComfyBridgeBoundary
+
+------ComfyBridgeBoundary
+Content-Disposition: form-data; name="type"
+
+input
+------ComfyBridgeBoundary
+Content-Disposition: form-data; name="overwrite"
+
+true
+------ComfyBridgeBoundary
+Content-Disposition: form-data; name="file"; filename="your-start-frame.png"
+Content-Type: image/png
+
+< ./path/to/your-start-frame.png
+------ComfyBridgeBoundary--
 
 ###
 
@@ -17,6 +38,22 @@ Content-Type: application/json
 	"width": 1024,
 	"height": 576,
 	"checkpointName": "flux1-dev-fp8.safetensors"
+}
+
+###
+
+POST {{ComfyBridge_Api_HostAddress}}/api/v1/image2video/03-video-wan2-2-14b-i2v-subgraphed
+Content-Type: application/json
+
+{
+	"image": "{{UploadedComfyImage}}",
+	"prompt": "Energy loading with cosmic light converging to the character",
+	"negativePrompt": "blurry, low quality, distorted",
+	"width": 720,
+	"height": 720,
+	"frameCount": 81,
+	"fps": 16,
+	"filenamePrefix": "video/Wan2.2_image_to_video"
 }
 
 ###

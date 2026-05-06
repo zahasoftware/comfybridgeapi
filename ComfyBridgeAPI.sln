@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComfyBridge.Domain", "Comfy
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComfyBridge.Infrastructure", "ComfyBridge.Infrastructure\ComfyBridge.Infrastructure.csproj", "{E11D32A2-8727-47A9-82E9-C6B51FDDABA5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComfyBridge.Tests", "ComfyBridge.Tests\ComfyBridge.Tests.csproj", "{507B5D6A-0580-42B9-B3DE-162313859194}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,18 @@ Global
 		{E11D32A2-8727-47A9-82E9-C6B51FDDABA5}.Release|x64.Build.0 = Release|Any CPU
 		{E11D32A2-8727-47A9-82E9-C6B51FDDABA5}.Release|x86.ActiveCfg = Release|Any CPU
 		{E11D32A2-8727-47A9-82E9-C6B51FDDABA5}.Release|x86.Build.0 = Release|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Debug|x64.Build.0 = Debug|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Debug|x86.Build.0 = Debug|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Release|Any CPU.Build.0 = Release|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Release|x64.ActiveCfg = Release|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Release|x64.Build.0 = Release|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Release|x86.ActiveCfg = Release|Any CPU
+		{507B5D6A-0580-42B9-B3DE-162313859194}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
