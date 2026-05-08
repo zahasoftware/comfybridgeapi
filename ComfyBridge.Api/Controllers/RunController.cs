@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using ComfyBridge.Api.Contracts;
 using ComfyBridge.Application.Contracts;
 using ComfyBridge.Domain.Exceptions;
+using ComfyBridge.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ComfyBridge.Api.Controllers;
@@ -55,20 +56,40 @@ public sealed class RunController(
                 $"Accepted fields: {string.Join(", ", template.Inputs.Keys)}.");
         }
 
-        var missingKeys = template.Inputs.Keys
-            .Where(k => !body.ContainsKey(k))
+        var providedKeys = template.Inputs.Keys
+            .Where(body.ContainsKey)
             .ToArray();
 
-        if (missingKeys.Length > 0)
+        if (providedKeys.Length == 0)
         {
             throw new InputValidationException(
-                $"Missing required field(s): {string.Join(", ", missingKeys)}.");
+                "At least one input field is required. " +
+                $"Accepted fields: {string.Join(", ", template.Inputs.Keys)}.");
+        }
+
+        var defaultValues = GetWorkflowDefaultValues(template);
+
+        var keysMissingDefault = template.Inputs.Keys
+            .Where(k => !body.ContainsKey(k) && !defaultValues.ContainsKey(k))
+            .ToArray();
+
+        if (keysMissingDefault.Length > 0)
+        {
+            throw new InputValidationException(
+                "Some required fields were not provided and do not have defaults in the workflow: " +
+                $"{string.Join(", ", keysMissingDefault)}.");
         }
 
         var safeInputs = new JsonObject();
         foreach (var key in template.Inputs.Keys)
         {
-            safeInputs[key] = body[key]?.DeepClone();
+            if (body.TryGetPropertyValue(key, out var providedValue) && providedValue is not null)
+            {
+                safeInputs[key] = providedValue.DeepClone();
+                continue;
+            }
+
+            safeInputs[key] = defaultValues[key].DeepClone();
         }
 
         var job = await generationService.StartImageGenerationAsync(
@@ -85,5 +106,154 @@ public sealed class RunController(
             Version = template.Version,
             Category = string.IsNullOrWhiteSpace(template.Category) ? category : template.Category
         });
+    }
+
+    private static Dictionary<string, JsonNode> GetWorkflowDefaultValues(WorkflowTemplate template)
+    {
+        var defaults = new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (key, _) in template.Inputs)
+        {
+            if (!template.Mapping.TryGetValue(key, out var mapping))
+            {
+                continue;
+            }
+
+            var val = ReadWorkflowDefaultValue(template.Workflow, mapping);
+            if (val is not null)
+            {
+                defaults[key] = val;
+            }
+        }
+
+        return defaults;
+    }
+
+    private static JsonNode? ReadWorkflowDefaultValue(JsonNode workflow, WorkflowInputMapping mapping)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.JsonPointer))
+        {
+            return ReadByJsonPointer(workflow, mapping.JsonPointer!);
+        }
+
+        if (!string.IsNullOrWhiteSpace(mapping.NodeClass) && !string.IsNullOrWhiteSpace(mapping.Field))
+        {
+            return ReadByNodeClass(workflow, mapping.NodeClass!, mapping.NodeIndex, mapping.Field!);
+        }
+
+        if (!string.IsNullOrWhiteSpace(mapping.NodeId) && !string.IsNullOrWhiteSpace(mapping.Field))
+        {
+            return ReadByNodeId(workflow, mapping.NodeId!, mapping.Field!);
+        }
+
+        return null;
+    }
+
+    private static JsonNode? ReadByJsonPointer(JsonNode node, string pointer)
+    {
+        if (string.IsNullOrWhiteSpace(pointer) || pointer[0] != '/')
+        {
+            return null;
+        }
+
+        var segments = pointer.Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Replace("~1", "/").Replace("~0", "~"))
+            .ToArray();
+
+        JsonNode? current = node;
+        foreach (var segment in segments)
+        {
+            current = current switch
+            {
+                JsonObject obj => obj[segment],
+                JsonArray arr when int.TryParse(segment, out var idx) && idx >= 0 && idx < arr.Count => arr[idx],
+                _ => null
+            };
+
+            if (current is null)
+            {
+                return null;
+            }
+        }
+
+        return current.DeepClone();
+    }
+
+    private static JsonNode? ReadByNodeClass(JsonNode workflow, string nodeClass, int nodeIndex, string field)
+    {
+        if (workflow is not JsonObject root)
+        {
+            return null;
+        }
+
+        var candidates = EnumerateWorkflowNodes(root)
+            .Where(n => string.Equals(n["class_type"]?.GetValue<string>(), nodeClass, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (candidates.Count <= nodeIndex)
+        {
+            return null;
+        }
+
+        return ReadNodeInputField(candidates[nodeIndex], field);
+    }
+
+    private static JsonNode? ReadByNodeId(JsonNode workflow, string nodeId, string field)
+    {
+        if (workflow is not JsonObject root)
+        {
+            return null;
+        }
+
+        if (root[nodeId] is JsonObject directNode)
+        {
+            return ReadNodeInputField(directNode, field);
+        }
+
+        foreach (var node in EnumerateWorkflowNodes(root))
+        {
+            if (string.Equals(node["id"]?.ToString(), nodeId, StringComparison.OrdinalIgnoreCase))
+            {
+                return ReadNodeInputField(node, field);
+            }
+        }
+
+        return null;
+    }
+
+    private static JsonNode? ReadNodeInputField(JsonObject node, string field)
+    {
+        if (node["inputs"] is not JsonObject inputs)
+        {
+            return null;
+        }
+
+        return inputs.TryGetPropertyValue(field, out var val) && val is not null
+            ? val.DeepClone()
+            : null;
+    }
+
+    private static IEnumerable<JsonObject> EnumerateWorkflowNodes(JsonObject root)
+    {
+        foreach (var (_, nodeValue) in root)
+        {
+            if (nodeValue is JsonObject nodeObject && nodeObject.ContainsKey("class_type"))
+            {
+                yield return nodeObject;
+            }
+        }
+
+        if (root["nodes"] is not JsonArray nodes)
+        {
+            yield break;
+        }
+
+        foreach (var item in nodes)
+        {
+            if (item is JsonObject nodeObject)
+            {
+                yield return nodeObject;
+            }
+        }
     }
 }
