@@ -62,7 +62,7 @@
                     </td>
                     <td>
                         <div class="actions">
-                            <a class="btn btn-primary" href="/workflows/test/@Uri.EscapeDataString(template.TemplateKey)">Test</a>
+                            <a class="btn btn-primary" href="/api-explorer?template=@Uri.EscapeDataString(template.TemplateKey)">Test</a>
                             <a class="btn btn-ghost" href="/workflows/@Uri.EscapeDataString(template.TemplateKey)">View</a>
                             <a class="btn btn-ghost" href="/workflows/edit/@Uri.EscapeDataString(template.TemplateKey)" style="background:#dbeafe;color:#1e40af;">Edit</a>
                             <form method="post" asp-page-handler="Delete" style="display: inline;">

@@ -189,7 +189,7 @@ details.curl pre { background: #0f172a; color: #e2e8f0; border-radius: 10px;
         var catDisplay = string.IsNullOrWhiteSpace(template.Category) ? "general" : template.Category;
         var defaults = ComfyBridge.Api.Pages.ApiExplorerModel.GetWorkflowDefaultValues(template);
 
-        <div class="card template-card" data-category="@catDisplay.ToLowerInvariant()">
+        <div class="card template-card" data-category="@catDisplay.ToLowerInvariant()" data-template-key="@template.TemplateKey">
 
             <!-- Header -->
             <div class="card-head">
@@ -607,4 +607,35 @@ function renderDone(id, job) {
 
     setResult(id, 'ok', html);
 }
+
+/* ── auto-open panel from ?template= query param ── */
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('template');
+    if (!target) return;
+
+    const card = document.querySelector(`.template-card[data-template-key="${CSS.escape(target)}"]`);
+    if (!card) return;
+
+    // Find the panel id from the test panel inside this card
+    const panel = card.querySelector('.test-panel');
+    if (!panel) return;
+
+    const panelId = panel.id.replace('panel-', '');
+    const btn = card.querySelector('button[onclick^="togglePanel"]');
+
+    // Open the panel
+    panel.style.display = 'block';
+    if (btn) btn.textContent = 'Close ▴';
+
+    // Attach input listeners
+    if (!panel._listenersAttached) {
+        panel._listenersAttached = true;
+        panel.addEventListener('input',  () => refreshCodeIfOpen(panelId));
+        panel.addEventListener('change', () => refreshCodeIfOpen(panelId));
+    }
+
+    // Scroll to the card
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 </script>
