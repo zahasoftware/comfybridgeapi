@@ -131,7 +131,7 @@ public sealed class EditModel(
         try
         {
             var result = await analyzer.AnalyzeAsync(WorkflowJson, cancellationToken);
-            Inputs = result.Template.Mapping
+            Inputs = [.. result.Template.Mapping
                 .Select(pair => new EditableInput
                 {
                     InputName = pair.Key,
@@ -140,11 +140,10 @@ public sealed class EditModel(
                     NodeClass = pair.Value.NodeClass,
                     NodeIndex = pair.Value.NodeIndex,
                     Field = pair.Value.Field
-                })
-                .ToList();
+                })];
 
             var template = BuildTemplateFromForm();
-            await templateService.SaveTemplateAsync(template, cancellationToken);
+            await SaveEditedTemplateAsync(template, cancellationToken);
 
             DetectedNodeTypes = ExtractNodeTypes(template.Workflow);
             RefreshMappingJson();
@@ -171,7 +170,7 @@ public sealed class EditModel(
         try
         {
             var template = BuildTemplateFromForm();
-            await templateService.SaveTemplateAsync(template, cancellationToken);
+            await SaveEditedTemplateAsync(template, cancellationToken);
             StatusMessage = "Template saved.";
         }
         catch (Exception ex) when (ex is JsonException or InputValidationException)
@@ -237,6 +236,57 @@ public sealed class EditModel(
             Inputs = inputs,
             Mapping = mapping
         };
+    }
+
+    private async Task SaveEditedTemplateAsync(WorkflowTemplate template, CancellationToken cancellationToken)
+    {
+        var hadOriginal = TryParseTemplateKey(OriginalKey, out var originalName, out var originalVersion);
+        var isRename = hadOriginal &&
+            (!string.Equals(originalName, template.Name, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(originalVersion, template.Version, StringComparison.OrdinalIgnoreCase));
+
+        if (isRename)
+        {
+            try
+            {
+                _ = await templateService.GetTemplateAsync(template.Name, template.Version, cancellationToken);
+                throw new InputValidationException($"Template '{template.Name}:{template.Version}' already exists.");
+            }
+            catch (TemplateNotFoundException)
+            {
+                // Expected path: target key does not exist yet.
+            }
+        }
+
+        await templateService.SaveTemplateAsync(template, cancellationToken);
+
+        if (isRename)
+        {
+            await templateService.DeleteTemplateAsync(originalName!, originalVersion!, cancellationToken);
+            OriginalKey = Uri.EscapeDataString(template.TemplateKey);
+        }
+    }
+
+    private static bool TryParseTemplateKey(string key, out string? name, out string? version)
+    {
+        name = null;
+        version = null;
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var decoded = Uri.UnescapeDataString(key);
+        var parts = decoded.Split(':', 2);
+        if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+        {
+            return false;
+        }
+
+        name = parts[0];
+        version = parts[1];
+        return true;
     }
 
     private void RehydrateDerivedState()
